@@ -1,0 +1,244 @@
+{
+  "id": "report_daily_1754432943563",
+  "date": "2025-08-05T22:29:03.563Z",
+  "reportType": "daily",
+  "summary": {
+    "period": "Last 24 Hours",
+    "totalTrades": 50,
+    "winRate": 0.68,
+    "totalReturn": 1377.4417658149926,
+    "totalReturnPercentage": 2.4407951641045793,
+    "sharpeRatio": 1.0680007641136093,
+    "maxDrawdown": 0.18727450172623716,
+    "currentBalance": 51250.75,
+    "keyHighlights": [
+      "Win rate: 68.0%",
+      "3 high-confidence patterns detected",
+      "1 high-priority insights generated",
+      "Dynamic stops adjusted 12 times for optimal protection"
+    ],
+    "alertsAndWarnings": [
+      "High drawdown detected - review risk parameters"
+    ],
+    "performanceGrade": "B-"
+  },
+  "performance": {
+    "overview": {
+      "totalReturn": 1377.4417658149926,
+      "totalReturnPercentage": 2.4407951641045793,
+      "winRate": 0.68,
+      "profitFactor": 3.005394774685399,
+      "totalTrades": 50,
+      "winningTrades": 34,
+      "losingTrades": 16,
+      "averageWin": 268.75834796611423,
+      "averageLoss": -190.02877566650992,
+      "largestWin": 1053.6981611245849,
+      "largestLoss": -547.9951444177707
+    },
+    "aiPerformanceMetrics": {
+      "patternRecognitionAccuracy": 74.5,
+      "signalGenerationSpeed": "Sub-second",
+      "adaptationRate": 89.2,
+      "learningEfficiency": 82.7
+    }
+  },
+  "marketAnalysis": {
+    "patternsDetected": 3,
+    "marketRegime": "BULL",
+    "regimeConfidence": 78,
+    "keyPatterns": [
+      {
+        "type": "VOLUME_SURGE",
+        "symbol": "BTC/USD",
+        "confidence": 0.6403062863547787,
+        "expectedOutcome": "Increased volatility likely",
+        "description": "Unusual volume spike detected - potential big move incoming"
+      },
+      {
+        "type": "VOLUME_SURGE",
+        "symbol": "ADA/USD",
+        "confidence": 0.8338714039548495,
+        "expectedOutcome": "Increased volatility likely",
+        "description": "Unusual volume spike detected - potential big move incoming"
+      },
+      {
+        "type": "VOLUME_SURGE",
+        "symbol": "SOL/USD",
+        "confidence": 0.672039311338493,
+        "expectedOutcome": "Increased volatility likely",
+        "description": "Unusual volume spike detected - potential big move incoming"
+      }
+    ],
+    "volatilityAnalysis": {
+      "currentVolatility": 0.025,
+      "historicalAverage": 0.022,
+      "trend": "INCREASING"
+    }
+  },
+  "tradingInsights": {
+    "keyInsights": [
+      {
+        "id": "high_win_rate",
+        "type": "PERFORMANCE",
+        "title": "Strong Win Rate Performance",
+        "description": "Current win rate of 68.0% indicates effective strategy execution",
+        "impact": 15.2,
+        "confidence": 85,
+        "actionable": true,
+        "priority": "HIGH",
+        "recommendations": [
+          "Maintain current strategy parameters",
+          "Consider increasing position sizes"
+        ],
+        "timeframe": "immediate"
+      },
+      {
+        "id": "ai_adaptation",
+        "type": "AI_LEARNING",
+        "title": "Algorithm Adaptation Progress",
+        "description": "AI system has successfully adapted to recent market regime changes",
+        "impact": 8.5,
+        "confidence": 73,
+        "actionable": false,
+        "priority": "MEDIUM",
+        "recommendations": [
+          "Continue monitoring adaptation effectiveness"
+        ],
+        "timeframe": "ongoing"
+      }
+    ],
+    "behavioralAnalysis": {
+      "detectedPatterns": [
+        "MOMENTUM FOLLOWING",
+        "MEAN REVERSION"
+      ],
+      "strengthsIdentified": [
+        "Consistent profit-taking",
+        "Effective risk management"
+      ],
+      "weaknessesIdentified": [
+        "Occasional over-leveraging in volatile conditions"
+      ],
+      "behavioralScore": 78
+    },
+    "learningsAndAdaptations": {
+      "recentAdaptations": [
+        "Adjusted stop-loss distances based on volatility",
+        "Improved pattern recognition for range-bound markets"
+      ],
+      "learningVelocity": 0.82,
+      "adaptationSuccess": 0.89
+    }
+  },
+  "dynamicStops": {
+    "activeStops": 3,
+    "totalAdjustments": 60,
+    "averageConfidence": 85.12526078890103,
+    "protectedProfits": 6541.5,
+    "systemStatus": "ACTIVE",
+    "adjustmentFrequency": "30 seconds",
+    "keyFeatures": [
+      "AI-driven stop adjustment based on market confidence",
+      "Real-time volatility adaptation",
+      "Market regime recognition",
+      "Multi-factor risk assessment"
+    ],
+    "stopLevels": [
+      {
+        "symbol": "BTC/USD",
+        "currentPrice": "51683.66",
+        "stopPrice": "52427.91",
+        "trailingDistance": "1.44%",
+        "aiConfidence": "84%",
+        "lastAdjustment": "3:29:03 PM",
+        "performance": "Protected: $2180.50"
+      },
+      {
+        "symbol": "ETH/USD",
+        "currentPrice": "51592.35",
+        "stopPrice": "50601.78",
+        "trailingDistance": "1.92%",
+        "aiConfidence": "94%",
+        "lastAdjustment": "3:29:03 PM",
+        "performance": "Protected: $2180.50"
+      },
+      {
+        "symbol": "ADA/USD",
+        "currentPrice": "52644.54",
+        "stopPrice": "51381.07",
+        "trailingDistance": "2.40%",
+        "aiConfidence": "78%",
+        "lastAdjustment": "3:29:03 PM",
+        "performance": "Protected: $2180.50"
+      }
+    ]
+  },
+  "aiAnalysis": {
+    "modelPerformance": {
+      "accuracy": 87.4,
+      "precision": 82.1,
+      "recall": 79.8,
+      "f1Score": 81
+    },
+    "patternRecognition": {
+      "patternsAnalyzed": 5,
+      "highConfidencePatterns": 1,
+      "predictionAccuracy": 74.5
+    },
+    "learningMetrics": {
+      "dataPointsProcessed": 15847,
+      "modelUpdates": 23,
+      "adaptationRate": 0.5,
+      "knowledgeBase": "Continuously expanding"
+    },
+    "systemHealth": {
+      "status": "OPTIMAL",
+      "uptime": "99.97%",
+      "processingSpeed": "Sub-second response",
+      "memoryUsage": "68%"
+    }
+  },
+  "riskAssessment": {
+    "overallRisk": "HIGH",
+    "riskScore": 81,
+    "keyMetrics": {
+      "maxDrawdown": 0.18727450172623716,
+      "sharpeRatio": 1.0680007641136093,
+      "valueAtRisk": 0.03215217764707846
+    }
+  },
+  "recommendations": [
+    {
+      "priority": "MEDIUM",
+      "category": "Risk Management",
+      "recommendation": "Continue monitoring dynamic stop performance",
+      "rationale": "AI-driven stops showing positive impact on risk-adjusted returns"
+    }
+  ],
+  "outlook": {
+    "shortTerm": {
+      "bias": "BULLISH",
+      "confidence": 72,
+      "keyFactors": [
+        "Strong momentum patterns",
+        "Positive AI signals",
+        "Favorable risk metrics"
+      ]
+    },
+    "aiPredictions": {
+      "nextHour": "Continued upward momentum likely",
+      "next24Hours": "Watch for potential consolidation around key levels",
+      "confidence": 78
+    }
+  },
+  "metadata": {
+    "generatedAt": "2025-08-05T22:29:03.590Z",
+    "generatedBy": "AI Trading Bot Demo",
+    "version": "1.0.0",
+    "dataAsOf": "2025-08-05T22:29:03.590Z",
+    "processingTime": 2847,
+    "dataQualityScore": 92,
+    "automationLevel": 95
+  }
+}

@@ -1,0 +1,413 @@
+{
+  "name": "🛡️ Risk Management Monitor - Alpaca Integration",
+  "description": "Real-time risk monitoring using Alpaca paper trading account data and positions",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "risk-monitor-trigger",
+      "name": "⏲️ Risk Monitor Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/positions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "get-positions",
+      "name": "📊 Get Current Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/account",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "get-account",
+      "name": "💰 Get Account Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/orders?status=all&limit=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "get-recent-orders",
+      "name": "📋 Get Recent Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Advanced Risk Analysis Engine for Alpaca Trading\nconst positions = $input.first().json || [];\nconst account = $input.all()[1].json;\nconst orders = $input.all()[2].json || [];\n\n// Account metrics\nconst equity = parseFloat(account.equity);\nconst buyingPower = parseFloat(account.buying_power);\nconst cash = parseFloat(account.cash);\nconst portfolioValue = parseFloat(account.portfolio_value);\nconst daytradeCount = parseInt(account.daytrade_buying_power);\n\n// Position analysis\nlet totalPositionValue = 0;\nlet totalUnrealizedPnL = 0;\nlet totalMarketValue = 0;\nlet leverageUsed = 0;\n\nconst positionDetails = positions.map(position => {\n  const marketValue = parseFloat(position.market_value);\n  const unrealizedPnL = parseFloat(position.unrealized_pl);\n  const costBasis = parseFloat(position.cost_basis);\n  const qty = parseFloat(position.qty);\n  const side = position.side;\n  \n  totalPositionValue += Math.abs(costBasis);\n  totalUnrealizedPnL += unrealizedPnL;\n  totalMarketValue += Math.abs(marketValue);\n  \n  return {\n    symbol: position.symbol,\n    side: side,\n    qty: qty,\n    marketValue: marketValue,\n    costBasis: costBasis,\n    unrealizedPnL: unrealizedPnL,\n    unrealizedPlPercent: parseFloat(position.unrealized_plpc) * 100,\n    currentPrice: parseFloat(position.current_price),\n    avgEntryPrice: parseFloat(position.avg_entry_price),\n    exposure: Math.abs(marketValue) / equity * 100\n  };\n});\n\n// Risk calculations\nconst portfolioUtilization = (totalMarketValue / equity) * 100;\nconst cashUtilization = ((equity - cash) / equity) * 100;\nconst unrealizedPnLPercent = (totalUnrealizedPnL / equity) * 100;\nconst largestPosition = Math.max(...positionDetails.map(p => Math.abs(p.marketValue)), 0);\nconst positionConcentration = equity > 0 ? (largestPosition / equity) * 100 : 0;\n\n// Order analysis for trading behavior\nconst recentOrders = orders.slice(0, 10);\nconst filledOrders = recentOrders.filter(order => order.status === 'filled');\nconst cancelledOrders = recentOrders.filter(order => order.status === 'cancelled');\nconst rejectedOrders = recentOrders.filter(order => order.status === 'rejected');\n\n// Trading frequency and behavior metrics\nconst todayOrders = orders.filter(order => {\n  const orderDate = new Date(order.created_at).toDateString();\n  const today = new Date().toDateString();\n  return orderDate === today;\n});\n\n// Risk level determination\nconst RISK_THRESHOLDS = {\n  LOW: { pnl: 5, concentration: 25, utilization: 50 },\n  MEDIUM: { pnl: 10, concentration: 40, utilization: 70 },\n  HIGH: { pnl: 15, concentration: 60, utilization: 85 },\n  CRITICAL: { pnl: 20, concentration: 80, utilization: 95 }\n};\n\nlet riskLevel = 'LOW';\nlet riskColor = 'green';\nlet alertMessage = '';\nlet emergencyStop = false;\n\n// Determine risk level based on multiple factors\nconst riskFactors = {\n  pnlRisk: Math.abs(unrealizedPnLPercent),\n  concentrationRisk: positionConcentration,\n  utilizationRisk: portfolioUtilization\n};\n\nif (riskFactors.pnlRisk > RISK_THRESHOLDS.CRITICAL.pnl || \n    riskFactors.concentrationRisk > RISK_THRESHOLDS.CRITICAL.concentration ||\n    riskFactors.utilizationRisk > RISK_THRESHOLDS.CRITICAL.utilization) {\n  riskLevel = 'CRITICAL';\n  riskColor = 'red';\n  emergencyStop = true;\n  alertMessage = '🚨 CRITICAL RISK: Immediate action required!';\n} else if (riskFactors.pnlRisk > RISK_THRESHOLDS.HIGH.pnl || \n           riskFactors.concentrationRisk > RISK_THRESHOLDS.HIGH.concentration ||\n           riskFactors.utilizationRisk > RISK_THRESHOLDS.HIGH.utilization) {\n  riskLevel = 'HIGH';\n  riskColor = 'orange';\n  alertMessage = '⚠️ HIGH RISK: Consider reducing positions';\n} else if (riskFactors.pnlRisk > RISK_THRESHOLDS.MEDIUM.pnl || \n           riskFactors.concentrationRisk > RISK_THRESHOLDS.MEDIUM.concentration ||\n           riskFactors.utilizationRisk > RISK_THRESHOLDS.MEDIUM.utilization) {\n  riskLevel = 'MEDIUM';\n  riskColor = 'yellow';\n  alertMessage = '💛 MEDIUM RISK: Monitor closely';\n}\n\n// Additional risk checks\nconst isDayTradingLimit = daytradeCount >= 3; // PDT rule concern\nconst highOrderRejectionRate = recentOrders.length > 0 ? (rejectedOrders.length / recentOrders.length) > 0.2 : false;\nconst excessiveTradingToday = todayOrders.length > 10;\n\nif (isDayTradingLimit) {\n  alertMessage += ' | Day trading limit concern';\n}\nif (highOrderRejectionRate) {\n  alertMessage += ' | High order rejection rate';\n}\nif (excessiveTradingToday) {\n  alertMessage += ' | Excessive trading activity today';\n}\n\n// Performance metrics\nconst totalReturn = equity - 100000; // Assuming $100k starting capital\nconst totalReturnPercent = (totalReturn / 100000) * 100;\nconst winningPositions = positionDetails.filter(p => p.unrealizedPnL > 0).length;\nconst losingPositions = positionDetails.filter(p => p.unrealizedPnL < 0).length;\nconst winRate = positions.length > 0 ? (winningPositions / positions.length) * 100 : 0;\n\nreturn [{\n  json: {\n    riskAnalysis: {\n      timestamp: new Date().toISOString(),\n      riskLevel,\n      riskColor,\n      emergencyStop,\n      alertMessage,\n      shouldAlert: riskLevel !== 'LOW' || isDayTradingLimit || highOrderRejectionRate || excessiveTradingToday,\n      \n      // Account metrics\n      account: {\n        equity: parseFloat(equity.toFixed(2)),\n        buyingPower: parseFloat(buyingPower.toFixed(2)),\n        cash: parseFloat(cash.toFixed(2)),\n        portfolioValue: parseFloat(portfolioValue.toFixed(2)),\n        totalUnrealizedPnL: parseFloat(totalUnrealizedPnL.toFixed(2)),\n        unrealizedPnLPercent: parseFloat(unrealizedPnLPercent.toFixed(2)),\n        totalReturn: parseFloat(totalReturn.toFixed(2)),\n        totalReturnPercent: parseFloat(totalReturnPercent.toFixed(2))\n      },\n      \n      // Risk metrics\n      risk: {\n        portfolioUtilization: parseFloat(portfolioUtilization.toFixed(2)),\n        cashUtilization: parseFloat(cashUtilization.toFixed(2)),\n        positionConcentration: parseFloat(positionConcentration.toFixed(2)),\n        largestPositionValue: parseFloat(largestPosition.toFixed(2)),\n        positionCount: positions.length,\n        maxPositions: 10, // Conservative limit\n        riskFactors\n      },\n      \n      // Trading metrics\n      trading: {\n        todayOrderCount: todayOrders.length,\n        recentOrderCount: recentOrders.length,\n        filledOrderCount: filledOrders.length,\n        rejectedOrderCount: rejectedOrders.length,\n        orderSuccessRate: recentOrders.length > 0 ? ((filledOrders.length / recentOrders.length) * 100).toFixed(1) : 0,\n        isDayTradingLimit,\n        winRate: parseFloat(winRate.toFixed(1)),\n        winningPositions,\n        losingPositions\n      },\n      \n      // Detailed positions\n      positions: positionDetails\n    }\n  }\n}];"
+      },
+      "id": "risk-analysis",
+      "name": "🧮 Advanced Risk Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-alert",
+              "leftValue": "={{ $json.riskAnalysis.shouldAlert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "risk-alert-check",
+      "name": "🚨 Risk Alert Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "emergency-stop-needed",
+              "leftValue": "={{ $json.riskAnalysis.emergencyStop }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "emergency-check",
+      "name": "🛑 Emergency Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/positions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "DELETE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "close-all-positions",
+      "name": "📴 Close All Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "DELETE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cancel-all-orders",
+      "name": "🚫 Cancel All Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "alert-data",
+              "name": "alertData",
+              "value": "={{ {\n  title: '🚨 Alpaca Trading Risk Alert',\n  level: $json.riskAnalysis.riskLevel,\n  message: $json.riskAnalysis.alertMessage,\n  account: {\n    equity: '$' + $json.riskAnalysis.account.equity.toLocaleString(),\n    unrealizedPnL: '$' + $json.riskAnalysis.account.totalUnrealizedPnL.toLocaleString(),\n    unrealizedPnLPercent: $json.riskAnalysis.account.unrealizedPnLPercent + '%',\n    buyingPower: '$' + $json.riskAnalysis.account.buyingPower.toLocaleString()\n  },\n  risk: {\n    utilization: $json.riskAnalysis.risk.portfolioUtilization + '%',\n    concentration: $json.riskAnalysis.risk.positionConcentration + '%',\n    positions: $json.riskAnalysis.risk.positionCount + '/' + $json.riskAnalysis.risk.maxPositions\n  },\n  trading: {\n    todayOrders: $json.riskAnalysis.trading.todayOrderCount,\n    successRate: $json.riskAnalysis.trading.orderSuccessRate + '%',\n    winRate: $json.riskAnalysis.trading.winRate + '%'\n  },\n  timestamp: $json.riskAnalysis.timestamp,\n  color: $json.riskAnalysis.riskColor\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-alert",
+      "name": "📋 Format Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1000, 500]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-entry",
+              "name": "logEntry",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }} - Risk monitoring complete. Risk Level: {{ $json.riskAnalysis.riskLevel }}, Equity: ${{ $json.riskAnalysis.account.equity }}, P&L: ${{ $json.riskAnalysis.account.totalUnrealizedPnL }}, Positions: {{ $json.riskAnalysis.risk.positionCount }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "MONITORING",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-monitoring",
+      "name": "📝 Log Monitoring",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Comprehensive Risk Report Generator\nconst riskData = $input.first().json.riskAnalysis;\nconst timestamp = new Date().toISOString();\n\n// Generate detailed risk assessment\nconst riskScore = (\n  (riskData.risk.portfolioUtilization * 0.3) +\n  (riskData.risk.positionConcentration * 0.3) +\n  (Math.abs(riskData.account.unrealizedPnLPercent) * 0.4)\n);\n\nconst report = {\n  reportId: `alpaca-risk-${Date.now()}`,\n  timestamp,\n  accountSummary: {\n    brokerage: 'Alpaca Markets',\n    accountType: 'Paper Trading',\n    equity: riskData.account.equity,\n    buyingPower: riskData.account.buyingPower,\n    cash: riskData.account.cash,\n    unrealizedPnL: riskData.account.totalUnrealizedPnL,\n    totalReturn: riskData.account.totalReturn,\n    returnPercentage: riskData.account.totalReturnPercent\n  },\n  riskAssessment: {\n    overallRiskLevel: riskData.riskLevel,\n    riskScore: Math.round(riskScore),\n    emergencyStatus: riskData.emergencyStop,\n    primaryConcerns: riskData.alertMessage ? riskData.alertMessage.split('|').map(s => s.trim()) : []\n  },\n  positionAnalysis: {\n    totalPositions: riskData.risk.positionCount,\n    portfolioUtilization: riskData.risk.portfolioUtilization,\n    concentrationRisk: riskData.risk.positionConcentration,\n    largestPosition: riskData.risk.largestPositionValue,\n    winningPositions: riskData.trading.winningPositions,\n    losingPositions: riskData.trading.losingPositions,\n    winRate: riskData.trading.winRate\n  },\n  tradingBehavior: {\n    todayOrders: riskData.trading.todayOrderCount,\n    recentOrders: riskData.trading.recentOrderCount,\n    successRate: parseFloat(riskData.trading.orderSuccessRate),\n    rejectedOrders: riskData.trading.rejectedOrderCount,\n    dayTradingLimitRisk: riskData.trading.isDayTradingLimit\n  },\n  recommendations: [\n    riskData.emergencyStop ? '🚨 IMMEDIATE: Stop all trading and close positions' : null,\n    riskData.risk.portfolioUtilization > 80 ? '⚖️ Reduce portfolio utilization' : null,\n    riskData.risk.positionConcentration > 50 ? '📊 Diversify position allocation' : null,\n    riskData.trading.winRate < 40 && riskData.risk.positionCount > 2 ? '📈 Review trading strategy performance' : null,\n    riskData.trading.orderSuccessRate < 80 ? '🔧 Optimize order execution strategy' : null,\n    riskData.trading.isDayTradingLimit ? '⚠️ Monitor day trading limits (PDT rule)' : null,\n    riskData.account.unrealizedPnLPercent < -10 ? '🛡️ Implement stricter stop losses' : null,\n    '💡 Continue systematic risk monitoring'\n  ].filter(Boolean),\n  topPositions: riskData.positions.slice(0, 5).map(pos => ({\n    symbol: pos.symbol,\n    side: pos.side,\n    marketValue: pos.marketValue,\n    unrealizedPnL: pos.unrealizedPnL,\n    exposure: pos.exposure.toFixed(1) + '%'\n  }))\n};\n\nreturn [{ json: { riskReport: report, rawData: riskData } }];"
+      },
+      "id": "generate-report",
+      "name": "📊 Generate Risk Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 400]
+    }
+  ],
+  "connections": {
+    "⏲️ Risk Monitor Schedule": {
+      "main": [
+        [
+          {
+            "node": "📊 Get Current Positions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💰 Get Account Info",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Get Recent Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Get Current Positions": {
+      "main": [
+        [
+          {
+            "node": "🧮 Advanced Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 Get Account Info": {
+      "main": [
+        [
+          {
+            "node": "🧮 Advanced Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Get Recent Orders": {
+      "main": [
+        [
+          {
+            "node": "🧮 Advanced Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Advanced Risk Analysis": {
+      "main": [
+        [
+          {
+            "node": "🚨 Risk Alert Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📝 Log Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Risk Alert Check": {
+      "main": [
+        [
+          {
+            "node": "🛑 Emergency Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "🛑 Emergency Check": {
+      "main": [
+        [
+          {
+            "node": "📴 Close All Positions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🚫 Cancel All Orders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📴 Close All Positions": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚫 Cancel All Orders": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Format Alert": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "versionId": "2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "risk-management-monitor-alpaca",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "risk",
+      "name": "Risk Management"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "alpaca",
+      "name": "Alpaca"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "monitoring",
+      "name": "Monitoring"
+    }
+  ]
+} 

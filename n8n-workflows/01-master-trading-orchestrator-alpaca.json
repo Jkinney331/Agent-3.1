@@ -1,0 +1,530 @@
+{
+  "name": "🎯 Master Trading Orchestrator - Alpaca Paper Trading",
+  "description": "Main orchestration workflow with Alpaca paper trading integration for live trading operations",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "⏰ Trading Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/account",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "check-account-status",
+      "name": "🔍 Check Account Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "account-active-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ACTIVE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "trading-enabled-check",
+              "leftValue": "={{ $json.trading_blocked }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "safety-checks",
+      "name": "🛡️ Safety Checks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "crypto-symbols",
+              "name": "cryptoSymbols",
+              "value": "=[\"BTCUSD\", \"ETHUSD\", \"ADAUSD\", \"SOLUSD\", \"LINKUSD\", \"DOTUSD\", \"AVAXUSD\"]",
+              "type": "array"
+            },
+            {
+              "id": "trading-capital",
+              "name": "tradingCapital",
+              "value": "={{ Math.min(5000, parseFloat($json.buying_power) * 0.1) }}",
+              "type": "number"
+            },
+            {
+              "id": "account-info",
+              "name": "accountInfo",
+              "value": "={{ {\n  equity: $json.equity,\n  buyingPower: $json.buying_power,\n  cash: $json.cash,\n  portfolioValue: $json.portfolio_value\n} }}",
+              "type": "object"
+            },
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-trading-params",
+      "name": "⚙️ Set Trading Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "halt-reason",
+              "name": "haltReason",
+              "value": "Trading halted - Account not active or trading blocked",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "HALTED",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-halt-status",
+      "name": "🛑 Set Halt Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "process-symbols",
+      "name": "🔄 Process Each Symbol",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://data.alpaca.markets/v2/stocks/{{ $json.cryptoSymbols[$('🔄 Process Each Symbol').itemMatching($runIndex).json.batchIndex] }}/bars/latest",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "get-market-data",
+      "name": "📊 Get Market Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Analysis Integration\nconst symbol = $('⚙️ Set Trading Parameters').item.json.cryptoSymbols[$('🔄 Process Each Symbol').itemMatching($runIndex).json.batchIndex];\nconst marketData = $input.first().json.bar;\nconst accountInfo = $('⚙️ Set Trading Parameters').item.json.accountInfo;\nconst tradingCapital = $('⚙️ Set Trading Parameters').item.json.tradingCapital;\n\n// Mock AI analysis (replace with your actual AI API call)\nconst mockAIAnalysis = {\n  symbol: symbol,\n  currentPrice: marketData.c, // Close price\n  signal: {\n    action: Math.random() > 0.7 ? (Math.random() > 0.5 ? 'BUY' : 'SELL') : 'HOLD',\n    confidence: Math.floor(Math.random() * 30) + 60, // 60-90%\n    riskReward: (Math.random() * 2 + 1.5).toFixed(2), // 1.5-3.5\n    positionSize: Math.min(tradingCapital * 0.1, accountInfo.buyingPower * 0.05),\n    reasoning: [\n      'Technical indicators show momentum',\n      'Market sentiment analysis',\n      'Volume profile analysis'\n    ],\n    marketRegime: ['trending', 'sideways', 'volatile'][Math.floor(Math.random() * 3)]\n  },\n  marketData: {\n    open: marketData.o,\n    high: marketData.h,\n    low: marketData.l,\n    close: marketData.c,\n    volume: marketData.v,\n    timestamp: marketData.t\n  }\n};\n\nreturn [{ json: mockAIAnalysis }];"
+      },
+      "id": "ai-analysis",
+      "name": "🧠 AI Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "buy-signal-check",
+              "leftValue": "={{ $json.signal.action }}",
+              "rightValue": "BUY",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "sell-signal-check",
+              "leftValue": "={{ $json.signal.action }}",
+              "rightValue": "SELL",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "trade-signal-check",
+      "name": "📊 Trade Signal Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1600, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"symbol\": $json.symbol,\n  \"qty\": Math.floor($json.signal.positionSize / $json.currentPrice),\n  \"side\": $json.signal.action.toLowerCase(),\n  \"type\": \"market\",\n  \"time_in_force\": \"day\",\n  \"client_order_id\": \"n8n_\" + Date.now()\n} }}",
+        "options": {}
+      },
+      "id": "execute-trade",
+      "name": "⚡ Execute Trade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1800, 100]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-entry",
+              "name": "logEntry",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }} - HOLD signal for {{ $json.symbol }} (Confidence: {{ $json.signal.confidence }}%, R/R: {{ $json.signal.riskReward }})",
+              "type": "string"
+            },
+            {
+              "id": "action",
+              "name": "action",
+              "value": "HOLD",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-hold-decision",
+      "name": "📝 Log HOLD Decision",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/positions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "alpacaApi",
+        "requestMethod": "GET",
+        "options": {}
+      },
+      "id": "monitor-positions",
+      "name": "👁️ Monitor Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-positions",
+              "leftValue": "={{ Array.isArray($json) ? $json.length : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "position-check",
+      "name": "📈 Position Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "summary",
+              "name": "tradingSummary",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }} - Trading cycle complete. Active positions: {{ Array.isArray($json) ? $json.length : 0 }}, Mode: PAPER_TRADING",
+              "type": "string"
+            },
+            {
+              "id": "cycle-complete",
+              "name": "cycleComplete",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "positions-count",
+              "name": "positionsCount",
+              "value": "={{ Array.isArray($json) ? $json.length : 0 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cycle-summary",
+      "name": "📊 Cycle Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2400, 200]
+    }
+  ],
+  "connections": {
+    "⏰ Trading Schedule": {
+      "main": [
+        [
+          {
+            "node": "🔍 Check Account Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Check Account Status": {
+      "main": [
+        [
+          {
+            "node": "🛡️ Safety Checks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛡️ Safety Checks": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Set Trading Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🛑 Set Halt Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Set Trading Parameters": {
+      "main": [
+        [
+          {
+            "node": "🔄 Process Each Symbol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Process Each Symbol": {
+      "main": [
+        [
+          {
+            "node": "📊 Get Market Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Get Market Data": {
+      "main": [
+        [
+          {
+            "node": "🧠 AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "📊 Trade Signal Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Trade Signal Check": {
+      "main": [
+        [
+          {
+            "node": "⚡ Execute Trade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 Log HOLD Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚡ Execute Trade": {
+      "main": [
+        [
+          {
+            "node": "👁️ Monitor Positions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log HOLD Decision": {
+      "main": [
+        [
+          {
+            "node": "👁️ Monitor Positions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👁️ Monitor Positions": {
+      "main": [
+        [
+          {
+            "node": "📈 Position Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 Position Check": {
+      "main": [
+        [
+          {
+            "node": "📊 Cycle Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 Cycle Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": {
+      "id": "error-handler-workflow"
+    }
+  },
+  "pinData": {},
+  "versionId": "2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "master-trading-orchestrator-alpaca",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "trading",
+      "name": "Trading"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z", 
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "alpaca",
+      "name": "Alpaca"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z", 
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "paper-trading",
+      "name": "Paper Trading"
+    }
+  ]
+} 

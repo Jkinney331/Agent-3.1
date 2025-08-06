@@ -1,0 +1,73 @@
+# AI Crypto Trading Bot - Development Dockerfile
+FROM node:20-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    sqlite \
+    postgresql-client \
+    python3 \
+    make \
+    g++ \
+    git
+
+# Set working directory
+WORKDIR /app
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies with development tools
+RUN npm ci --include=dev
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data /app/backups /app/config && \
+    chown -R nextjs:nodejs /app
+
+# Copy application code
+COPY --chown=nextjs:nodejs . .
+
+# Create startup script
+RUN cat > /app/start-dev.sh << 'EOF'
+#!/bin/sh
+
+echo "🚀 Starting AI Trading Bot Development Environment..."
+
+# Wait for database to be ready
+echo "⏳ Waiting for database connection..."
+until pg_isready -h postgres -p 5432 -U postgres; do
+  echo "Database is unavailable - sleeping"
+  sleep 2
+done
+
+echo "✅ Database is ready!"
+
+# Run database migrations if needed
+if [ -f "/app/scripts/setup-database-direct.js" ]; then
+  echo "🔄 Running database setup..."
+  node /app/scripts/setup-database-direct.js
+fi
+
+# Start the application with hot reload
+echo "🎯 Starting Next.js application..."
+exec npm run dev
+EOF
+
+RUN chmod +x /app/start-dev.sh
+
+# Switch to non-root user
+USER nextjs
+
+# Expose ports
+EXPOSE 3000 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Start application
+CMD ["/app/start-dev.sh"]

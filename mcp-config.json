@@ -1,0 +1,95 @@
+{
+  "mcpServers": {
+    "coingecko-server": {
+      "command": "node",
+      "args": ["lib/mcp/crypto-server.js"],
+      "description": "CoinGecko cryptocurrency data server"
+    },
+    "alpha-vantage-server": {
+      "command": "node", 
+      "args": ["lib/mcp/alpha-vantage-server.js"],
+      "description": "Alpha Vantage financial data server"
+    },
+    "free-crypto-analytics-server": {
+      "command": "node",
+      "args": ["lib/mcp/free-crypto-analytics-server.js"],
+      "description": "Free cryptocurrency analytics aggregator"
+    },
+    "news-aggregator-server": {
+      "command": "node",
+      "args": ["lib/mcp/news-aggregator-server.js"],
+      "description": "📰 Real-time news aggregation and impact analysis"
+    },
+    "futures-data-server": {
+      "command": "node",
+      "args": ["lib/mcp/futures-data-server.js"],
+      "description": "📈 Futures data including funding rates and perpetuals analytics"
+    },
+    "options-flow-server": {
+      "command": "node",
+      "args": ["lib/mcp/options-flow-server.js"],
+      "description": "📊 Derivatives and options flow data for market direction analysis"
+    },
+    "arbitrage-scanner-server": {
+      "command": "node",
+      "args": ["lib/mcp/arbitrage-scanner-server.js"],
+      "description": "🔄 Cross-exchange arbitrage opportunities and price discrepancy detection"
+    },
+    "defi-yields-server": {
+      "command": "node",
+      "args": ["lib/mcp/defi-yields-server.js"],
+      "description": "🌾 Yield farming opportunities and DeFi protocol return monitoring"
+    },
+    "nft-analytics-server": {
+      "command": "node",
+      "args": ["lib/mcp/nft-analytics-server.js"],
+      "description": "🎨 NFT market trends and alternative asset intelligence"
+    },
+    "supabase-server": {
+      "command": "node",
+      "args": ["lib/mcp/supabase-server.js"],
+      "description": "🗄️ Supabase database operations for trading data persistence"
+    }
+  },
+  "settings": {
+    "auto_start": true,
+    "log_level": "info",
+    "max_retries": 3,
+    "timeout_ms": 30000
+  },
+  "data_sources": {
+    "primary": "crypto-data",
+    "backup": "free-crypto-analytics", 
+    "sentiment": "alpha-vantage",
+    "news": "news-aggregator",
+    "social": "social-analytics",
+    "whale_tracking": "whale-alerts",
+    "futures": "futures-data",
+    "options": "options-flow",
+    "arbitrage": "arbitrage-scanner",
+    "defi": "defi-yields",
+    "nft": "nft-analytics"
+  },
+  "n8n_integration": {
+    "api_endpoints": {
+      "ai_analysis": "/api/ai-analysis",
+      "crypto_data": "/api/crypto",
+      "trading_execute": "/api/trading/execute",
+      "trading_config": "/api/trading/config",
+      "trading_positions": "/api/trading/positions"
+    },
+    "webhook_endpoints": {
+      "whale_alerts": "/api/webhooks/whale-alerts",
+      "news_alerts": "/api/webhooks/news-alerts",
+      "social_alerts": "/api/webhooks/social-alerts",
+      "arbitrage_alerts": "/api/webhooks/arbitrage-alerts"
+    },
+    "workflow_triggers": {
+      "master_orchestrator": "30s",
+      "market_intelligence": "5m",
+      "risk_management": "1m",
+      "portfolio_performance": "15m",
+      "notification_manager": "realtime"
+    }
+  }
+} 

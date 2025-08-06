@@ -1,0 +1,326 @@
+{
+  "name": "📊 Portfolio Performance Monitor",
+  "description": "Comprehensive portfolio tracking, performance analytics, and automated reporting",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "portfolio-monitor-trigger",
+      "name": "⏱️ Portfolio Monitor Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/positions",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "id": "get-positions",
+      "name": "📈 Get Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/execute?action=stats",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "id": "get-performance-stats",
+      "name": "📊 Get Performance Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/execute?action=history&limit=20",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "id": "get-trade-history",
+      "name": "📜 Get Trade History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Portfolio Performance Analytics Engine\nconst positions = $input.first().json.positions || [];\nconst stats = $input.all()[1].json.stats;\nconst history = $input.all()[2].json.history || [];\nconst timestamp = new Date().toISOString();\n\n// Account constants\nconst INITIAL_CAPITAL = 50000;\nconst CURRENT_BALANCE = 50000; // This would come from actual balance API\n\n// Calculate current portfolio metrics\nlet totalPositionValue = 0;\nlet totalUnrealizedPnL = 0;\nlet leverageUsed = 0;\n\nconst positionDetails = positions.map(position => {\n  // Mock current prices (in real implementation, fetch from API)\n  const currentPrice = position.entryPrice * (1 + (Math.random() - 0.5) * 0.03);\n  const positionValue = position.quantity * position.entryPrice;\n  const unrealizedPnL = position.side === 'LONG' \n    ? (currentPrice - position.entryPrice) * position.quantity\n    : (position.entryPrice - currentPrice) * position.quantity;\n  const pnlPercentage = (unrealizedPnL / positionValue) * 100;\n  \n  totalPositionValue += positionValue;\n  totalUnrealizedPnL += unrealizedPnL;\n  leverageUsed += positionValue * (position.leverage || 1);\n  \n  return {\n    symbol: position.symbol,\n    side: position.side,\n    entryPrice: position.entryPrice,\n    currentPrice: parseFloat(currentPrice.toFixed(2)),\n    quantity: position.quantity,\n    positionValue: parseFloat(positionValue.toFixed(2)),\n    unrealizedPnL: parseFloat(unrealizedPnL.toFixed(2)),\n    pnlPercentage: parseFloat(pnlPercentage.toFixed(2)),\n    leverage: position.leverage || 1,\n    duration: position.openTime ? \n      Math.floor((Date.now() - new Date(position.openTime).getTime()) / (1000 * 60 * 60)) + 'h' : 'N/A'\n  };\n});\n\n// Calculate portfolio-level metrics\nconst totalEquity = CURRENT_BALANCE + totalUnrealizedPnL;\nconst totalReturn = totalEquity - INITIAL_CAPITAL;\nconst totalReturnPercentage = (totalReturn / INITIAL_CAPITAL) * 100;\nconst leverageRatio = leverageUsed / CURRENT_BALANCE;\n\n// Risk metrics\nconst largestPosition = Math.max(...positionDetails.map(p => Math.abs(p.positionValue)), 0);\nconst positionConcentration = totalPositionValue > 0 ? (largestPosition / totalPositionValue) * 100 : 0;\nconst portfolioVolatility = Math.sqrt(positionDetails.reduce((sum, p) => sum + Math.pow(p.pnlPercentage, 2), 0) / Math.max(positionDetails.length, 1));\n\n// Performance metrics from trading history\nconst recentTrades = history.slice(0, 10);\nconst winningTrades = recentTrades.filter(trade => trade.result && trade.result.includes('profit')).length;\nconst winRate = recentTrades.length > 0 ? (winningTrades / recentTrades.length) * 100 : 0;\n\n// Daily/Weekly performance tracking\nconst today = new Date();\nconst weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);\nconst todayTrades = history.filter(trade => \n  new Date(trade.timestamp) >= new Date(today.toDateString())\n);\nconst weekTrades = history.filter(trade => \n  new Date(trade.timestamp) >= weekAgo\n);\n\n// Calculate Sharpe ratio (simplified)\nconst avgDailyReturn = totalReturnPercentage / 30; // Assuming 30 days\nconst riskFreeRate = 0.02; // 2% annual risk-free rate\nconst sharpeRatio = portfolioVolatility > 0 ? (avgDailyReturn - riskFreeRate/365) / (portfolioVolatility/100) : 0;\n\n// Generate performance report\nconst portfolioMetrics = {\n  timestamp,\n  accountSummary: {\n    initialCapital: INITIAL_CAPITAL,\n    currentBalance: CURRENT_BALANCE,\n    totalPositionValue: parseFloat(totalPositionValue.toFixed(2)),\n    totalUnrealizedPnL: parseFloat(totalUnrealizedPnL.toFixed(2)),\n    totalEquity: parseFloat(totalEquity.toFixed(2)),\n    totalReturn: parseFloat(totalReturn.toFixed(2)),\n    totalReturnPercentage: parseFloat(totalReturnPercentage.toFixed(2)),\n    availableBalance: parseFloat((CURRENT_BALANCE - totalPositionValue).toFixed(2))\n  },\n  riskMetrics: {\n    leverageRatio: parseFloat(leverageRatio.toFixed(2)),\n    positionCount: positions.length,\n    positionConcentration: parseFloat(positionConcentration.toFixed(2)),\n    portfolioVolatility: parseFloat(portfolioVolatility.toFixed(2)),\n    largestPositionValue: parseFloat(largestPosition.toFixed(2)),\n    riskLevel: leverageRatio > 3 ? 'HIGH' : leverageRatio > 1.5 ? 'MEDIUM' : 'LOW'\n  },\n  performanceMetrics: {\n    winRate: parseFloat(winRate.toFixed(1)),\n    totalTrades: history.length,\n    recentTradesCount: recentTrades.length,\n    todayTrades: todayTrades.length,\n    weekTrades: weekTrades.length,\n    sharpeRatio: parseFloat(sharpeRatio.toFixed(3)),\n    avgTradeSize: recentTrades.length > 0 ? \n      parseFloat((recentTrades.reduce((sum, trade) => sum + (trade.capital || 0), 0) / recentTrades.length).toFixed(2)) : 0\n  },\n  positions: positionDetails,\n  alerts: {\n    highRisk: leverageRatio > 3,\n    lowWinRate: winRate < 40 && recentTrades.length >= 5,\n    concentrationRisk: positionConcentration > 50,\n    largeDrawdown: totalReturnPercentage < -10,\n    unusualVolatility: portfolioVolatility > 15\n  },\n  recommendations: {\n    action: totalReturnPercentage > 5 ? 'MAINTAIN_STRATEGY' : \n           totalReturnPercentage < -5 ? 'REVIEW_STRATEGY' : 'MONITOR_CLOSELY',\n    priority: leverageRatio > 3 || totalReturnPercentage < -10 ? 'HIGH' : \n             leverageRatio > 1.5 || totalReturnPercentage < -5 ? 'MEDIUM' : 'LOW',\n    suggestions: [\n      leverageRatio > 3 ? 'Reduce leverage exposure' : null,\n      positionConcentration > 50 ? 'Diversify position allocation' : null,\n      winRate < 40 && recentTrades.length >= 5 ? 'Review trading strategy' : null,\n      totalReturnPercentage < -10 ? 'Consider risk management review' : null,\n      totalReturnPercentage > 10 ? 'Consider taking some profits' : null\n    ].filter(Boolean)\n  }\n};\n\nreturn [{ json: { portfolioAnalysis: portfolioMetrics } }];"
+      },
+      "id": "portfolio-analytics",
+      "name": "🧮 Portfolio Analytics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "performance-alert-check",
+              "leftValue": "={{ $json.portfolioAnalysis.alerts.highRisk || $json.portfolioAnalysis.alerts.largeDrawdown || $json.portfolioAnalysis.alerts.lowWinRate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "performance-alert-check",
+      "name": "🚨 Performance Alert Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "performance-alert",
+              "name": "performanceAlert",
+              "value": "={{ {\n  type: 'PORTFOLIO_PERFORMANCE',\n  title: '📊 Portfolio Performance Alert',\n  priority: $json.portfolioAnalysis.recommendations.priority,\n  totalReturn: $json.portfolioAnalysis.accountSummary.totalReturnPercentage + '%',\n  equity: '$' + $json.portfolioAnalysis.accountSummary.totalEquity,\n  positions: $json.portfolioAnalysis.riskMetrics.positionCount,\n  leverage: $json.portfolioAnalysis.riskMetrics.leverageRatio + 'x',\n  winRate: $json.portfolioAnalysis.performanceMetrics.winRate + '%',\n  recommendations: $json.portfolioAnalysis.recommendations.suggestions.join('; '),\n  action: $json.portfolioAnalysis.recommendations.action,\n  timestamp: $json.portfolioAnalysis.timestamp,\n  alerts: {\n    highRisk: $json.portfolioAnalysis.alerts.highRisk,\n    largeDrawdown: $json.portfolioAnalysis.alerts.largeDrawdown,\n    lowWinRate: $json.portfolioAnalysis.alerts.lowWinRate,\n    concentrationRisk: $json.portfolioAnalysis.alerts.concentrationRisk\n  }\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-performance-alert",
+      "name": "📢 Format Performance Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Daily Performance Report\nconst analysis = $input.first().json.portfolioAnalysis;\nconst timestamp = new Date().toISOString();\nconst date = new Date().toDateString();\n\n// Performance summary\nconst summary = {\n  reportDate: date,\n  reportTime: timestamp,\n  accountOverview: {\n    totalEquity: `$${analysis.accountSummary.totalEquity.toLocaleString()}`,\n    totalReturn: `${analysis.accountSummary.totalReturnPercentage >= 0 ? '+' : ''}${analysis.accountSummary.totalReturnPercentage}%`,\n    dailyPnL: `$${analysis.accountSummary.totalUnrealizedPnL.toLocaleString()}`,\n    availableBalance: `$${analysis.accountSummary.availableBalance.toLocaleString()}`\n  },\n  tradingActivity: {\n    activePositions: analysis.riskMetrics.positionCount,\n    leverageUsed: `${analysis.riskMetrics.leverageRatio}x`,\n    winRate: `${analysis.performanceMetrics.winRate}%`,\n    totalTrades: analysis.performanceMetrics.totalTrades,\n    todayTrades: analysis.performanceMetrics.todayTrades\n  },\n  riskAssessment: {\n    riskLevel: analysis.riskMetrics.riskLevel,\n    portfolioVolatility: `${analysis.riskMetrics.portfolioVolatility}%`,\n    positionConcentration: `${analysis.riskMetrics.positionConcentration}%`,\n    sharpeRatio: analysis.performanceMetrics.sharpeRatio\n  },\n  topPositions: analysis.positions.slice(0, 5).map(pos => ({\n    symbol: pos.symbol.toUpperCase(),\n    side: pos.side,\n    value: `$${pos.positionValue.toLocaleString()}`,\n    pnl: `${pos.pnlPercentage >= 0 ? '+' : ''}${pos.pnlPercentage}%`,\n    duration: pos.duration\n  })),\n  alerts: Object.keys(analysis.alerts).filter(key => analysis.alerts[key]),\n  recommendations: analysis.recommendations.suggestions,\n  marketInsights: {\n    recommendedAction: analysis.recommendations.action,\n    priority: analysis.recommendations.priority,\n    nextReview: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() // 2 hours from now\n  }\n};\n\n// Generate performance grade\nconst gradeFactors = [\n  analysis.accountSummary.totalReturnPercentage > 0 ? 25 : 0,\n  analysis.performanceMetrics.winRate > 50 ? 25 : analysis.performanceMetrics.winRate * 0.5,\n  analysis.riskMetrics.leverageRatio < 2 ? 25 : Math.max(0, 25 - (analysis.riskMetrics.leverageRatio - 2) * 10),\n  analysis.riskMetrics.portfolioVolatility < 10 ? 25 : Math.max(0, 25 - (analysis.riskMetrics.portfolioVolatility - 10) * 2)\n];\n\nconst performanceScore = gradeFactors.reduce((sum, factor) => sum + factor, 0);\nconst performanceGrade = performanceScore >= 85 ? 'A' : \n                       performanceScore >= 70 ? 'B' : \n                       performanceScore >= 55 ? 'C' : \n                       performanceScore >= 40 ? 'D' : 'F';\n\nconst dailyReport = {\n  ...summary,\n  performanceGrade: {\n    score: Math.round(performanceScore),\n    grade: performanceGrade,\n    breakdown: {\n      returns: gradeFactors[0],\n      winRate: Math.round(gradeFactors[1]),\n      riskManagement: Math.round(gradeFactors[2]),\n      volatility: Math.round(gradeFactors[3])\n    }\n  }\n};\n\nreturn [{ json: { dailyReport, rawAnalysis: analysis } }];"
+      },
+      "id": "generate-daily-report",
+      "name": "📋 Generate Daily Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "significant-performance",
+              "leftValue": "={{ Math.abs($json.rawAnalysis.accountSummary.totalReturnPercentage) > 2 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "grade-change",
+              "leftValue": "={{ $json.dailyReport.performanceGrade.grade === 'A' || $json.dailyReport.performanceGrade.grade === 'F' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "report-notification-check",
+      "name": "📤 Report Notification Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 700]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "report-notification",
+              "name": "reportNotification",
+              "value": "={{ {\n  type: 'DAILY_REPORT',\n  title: '📊 Daily Portfolio Report - Grade ' + $json.dailyReport.performanceGrade.grade,\n  summary: {\n    equity: $json.dailyReport.accountOverview.totalEquity,\n    return: $json.dailyReport.accountOverview.totalReturn,\n    positions: $json.dailyReport.tradingActivity.activePositions,\n    winRate: $json.dailyReport.tradingActivity.winRate,\n    grade: $json.dailyReport.performanceGrade.grade,\n    score: $json.dailyReport.performanceGrade.score\n  },\n  highlights: [\n    'Total Return: ' + $json.dailyReport.accountOverview.totalReturn,\n    'Win Rate: ' + $json.dailyReport.tradingActivity.winRate,\n    'Active Positions: ' + $json.dailyReport.tradingActivity.activePositions,\n    'Risk Level: ' + $json.rawAnalysis.riskMetrics.riskLevel,\n    'Performance Grade: ' + $json.dailyReport.performanceGrade.grade\n  ],\n  recommendations: $json.dailyReport.recommendations,\n  timestamp: $json.dailyReport.reportTime\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-report-notification",
+      "name": "📨 Format Report Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1200, 700]
+    }
+  ],
+  "connections": {
+    "⏱️ Portfolio Monitor Schedule": {
+      "main": [
+        [
+          {
+            "node": "📈 Get Positions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 Get Performance Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📜 Get Trade History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 Get Positions": {
+      "main": [
+        [
+          {
+            "node": "🧮 Portfolio Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Get Performance Stats": {
+      "main": [
+        [
+          {
+            "node": "🧮 Portfolio Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 Get Trade History": {
+      "main": [
+        [
+          {
+            "node": "🧮 Portfolio Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Portfolio Analytics": {
+      "main": [
+        [
+          {
+            "node": "🚨 Performance Alert Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Generate Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Performance Alert Check": {
+      "main": [
+        [
+          {
+            "node": "📢 Format Performance Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📋 Generate Daily Report": {
+      "main": [
+        [
+          {
+            "node": "📤 Report Notification Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Report Notification Check": {
+      "main": [
+        [
+          {
+            "node": "📨 Format Report Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "portfolio-performance-monitor",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "portfolio",
+      "name": "Portfolio"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "performance",
+      "name": "Performance"
+    }
+  ]
+} 

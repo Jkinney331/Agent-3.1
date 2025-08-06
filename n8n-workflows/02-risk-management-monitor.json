@@ -1,0 +1,393 @@
+{
+  "name": "🛡️ Risk Management Monitor",
+  "description": "Continuous monitoring of portfolio risk, position sizing, and emergency stop conditions",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "risk-monitor-trigger",
+      "name": "⏲️ Risk Monitor Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/positions",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "id": "get-positions",
+      "name": "📊 Get Current Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/config",
+        "authentication": "none",
+        "requestMethod": "GET",
+        "jsonParameters": true,
+        "options": {}
+      },
+      "id": "get-config",
+      "name": "⚙️ Get Trading Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Risk Analysis Engine\nconst positions = $input.first().json.positions || [];\nconst config = $input.all()[1].json.config;\nconst performance = $input.all()[1].json.performance;\n\n// Calculate portfolio metrics\nlet totalValue = 0;\nlet totalPnL = 0;\nlet riskExposure = 0;\nlet leverageUsed = 0;\n\npositions.forEach(position => {\n  const positionValue = position.quantity * position.entryPrice;\n  totalValue += positionValue;\n  \n  // Calculate unrealized P&L (simplified)\n  const currentPrice = position.entryPrice * (1 + (Math.random() - 0.5) * 0.02); // Mock current price\n  const pnl = position.side === 'LONG' \n    ? (currentPrice - position.entryPrice) * position.quantity\n    : (position.entryPrice - currentPrice) * position.quantity;\n  totalPnL += pnl;\n  \n  riskExposure += positionValue * (position.leverage || 1);\n});\n\n// Risk calculations\nconst accountBalance = 50000; // Mock account balance\nconst riskPercentage = (Math.abs(totalPnL) / accountBalance) * 100;\nconst leverageRatio = riskExposure / accountBalance;\nconst positionCount = positions.length;\nconst maxPositions = config.maxPositions || 3;\n\n// Risk thresholds\nconst RISK_LEVELS = {\n  LOW: { threshold: 5, color: 'green' },\n  MEDIUM: { threshold: 10, color: 'yellow' },\n  HIGH: { threshold: 15, color: 'orange' },\n  CRITICAL: { threshold: 20, color: 'red' }\n};\n\nlet riskLevel = 'LOW';\nlet riskColor = 'green';\nlet alertMessage = '';\n\nif (riskPercentage > RISK_LEVELS.CRITICAL.threshold) {\n  riskLevel = 'CRITICAL';\n  riskColor = 'red';\n  alertMessage = '🚨 CRITICAL RISK: Immediate action required!';\n} else if (riskPercentage > RISK_LEVELS.HIGH.threshold) {\n  riskLevel = 'HIGH';\n  riskColor = 'orange';\n  alertMessage = '⚠️ HIGH RISK: Consider reducing positions';\n} else if (riskPercentage > RISK_LEVELS.MEDIUM.threshold) {\n  riskLevel = 'MEDIUM';\n  riskColor = 'yellow';\n  alertMessage = '💛 MEDIUM RISK: Monitor closely';\n}\n\n// Position concentration check\nconst concentrationRisk = positionCount >= maxPositions;\nif (concentrationRisk) {\n  alertMessage += ` | Position limit reached: ${positionCount}/${maxPositions}`;\n}\n\n// Leverage check\nconst highLeverage = leverageRatio > 3;\nif (highLeverage) {\n  alertMessage += ` | High leverage: ${leverageRatio.toFixed(2)}x`;\n}\n\nreturn [{\n  json: {\n    riskAnalysis: {\n      timestamp: new Date().toISOString(),\n      riskLevel,\n      riskColor,\n      riskPercentage: parseFloat(riskPercentage.toFixed(2)),\n      totalPnL: parseFloat(totalPnL.toFixed(2)),\n      totalValue: parseFloat(totalValue.toFixed(2)),\n      leverageRatio: parseFloat(leverageRatio.toFixed(2)),\n      positionCount,\n      maxPositions,\n      concentrationRisk,\n      highLeverage,\n      alertMessage,\n      shouldAlert: riskLevel !== 'LOW' || concentrationRisk || highLeverage,\n      emergencyStop: riskLevel === 'CRITICAL'\n    },\n    positions,\n    config,\n    performance\n  }\n}];"
+      },
+      "id": "risk-analysis",
+      "name": "🧮 Risk Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-alert",
+              "leftValue": "={{ $json.riskAnalysis.shouldAlert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "risk-alert-check",
+      "name": "🚨 Risk Alert Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "emergency-stop-needed",
+              "leftValue": "={{ $json.riskAnalysis.emergencyStop }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "emergency-check",
+      "name": "🛑 Emergency Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/config",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "emergency-stop"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "trigger-emergency-stop",
+      "name": "🚨 Trigger Emergency Stop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/trading/config",
+        "authentication": "none",
+        "requestMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "close-all-positions"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "close-all-positions",
+      "name": "📴 Close All Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "alert-data",
+              "name": "alertData",
+              "value": "={{ {\n  title: '🚨 Trading Risk Alert',\n  level: $json.riskAnalysis.riskLevel,\n  message: $json.riskAnalysis.alertMessage,\n  risk: $json.riskAnalysis.riskPercentage + '%',\n  pnl: '$' + $json.riskAnalysis.totalPnL,\n  positions: $json.riskAnalysis.positionCount + '/' + $json.riskAnalysis.maxPositions,\n  leverage: $json.riskAnalysis.leverageRatio + 'x',\n  timestamp: $json.riskAnalysis.timestamp,\n  color: $json.riskAnalysis.riskColor\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-alert",
+      "name": "📋 Format Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1000, 500]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log-entry",
+              "name": "logEntry",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }} - Risk monitoring complete. Risk Level: {{ $json.riskAnalysis.riskLevel }}, P&L: ${{ $json.riskAnalysis.totalPnL }}, Positions: {{ $json.riskAnalysis.positionCount }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "MONITORING",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-monitoring",
+      "name": "📝 Log Monitoring",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Risk Report Generator\nconst riskData = $input.first().json.riskAnalysis;\nconst timestamp = new Date().toISOString();\n\n// Generate comprehensive risk report\nconst report = {\n  reportId: `risk-${Date.now()}`,\n  timestamp,\n  summary: {\n    riskLevel: riskData.riskLevel,\n    riskScore: riskData.riskPercentage,\n    totalPnL: riskData.totalPnL,\n    alertsTriggered: riskData.shouldAlert ? 1 : 0,\n    emergencyActions: riskData.emergencyStop ? 1 : 0\n  },\n  details: {\n    positionMetrics: {\n      count: riskData.positionCount,\n      maxAllowed: riskData.maxPositions,\n      utilizationRate: (riskData.positionCount / riskData.maxPositions * 100).toFixed(1) + '%'\n    },\n    leverageMetrics: {\n      currentRatio: riskData.leverageRatio,\n      isHigh: riskData.highLeverage,\n      recommendation: riskData.highLeverage ? 'Reduce leverage' : 'Leverage acceptable'\n    },\n    riskMetrics: {\n      currentRisk: riskData.riskPercentage + '%',\n      threshold: '15%',\n      status: riskData.riskLevel,\n      action: riskData.alertMessage || 'No action required'\n    }\n  },\n  recommendations: [\n    riskData.emergencyStop ? '🚨 EMERGENCY: Stop all trading immediately' : null,\n    riskData.riskLevel === 'HIGH' ? '⚠️ Reduce position sizes' : null,\n    riskData.concentrationRisk ? '📊 Diversify positions' : null,\n    riskData.highLeverage ? '⚖️ Reduce leverage usage' : null,\n    '💡 Continue monitoring'\n  ].filter(Boolean)\n};\n\nreturn [{ json: { riskReport: report, originalData: riskData } }];"
+      },
+      "id": "generate-report",
+      "name": "📊 Generate Risk Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 400]
+    }
+  ],
+  "connections": {
+    "⏲️ Risk Monitor Schedule": {
+      "main": [
+        [
+          {
+            "node": "📊 Get Current Positions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "⚙️ Get Trading Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Get Current Positions": {
+      "main": [
+        [
+          {
+            "node": "🧮 Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Get Trading Config": {
+      "main": [
+        [
+          {
+            "node": "🧮 Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Risk Analysis": {
+      "main": [
+        [
+          {
+            "node": "🚨 Risk Alert Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📝 Log Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Risk Alert Check": {
+      "main": [
+        [
+          {
+            "node": "🛑 Emergency Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "🛑 Emergency Check": {
+      "main": [
+        [
+          {
+            "node": "🚨 Trigger Emergency Stop",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📴 Close All Positions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Trigger Emergency Stop": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📴 Close All Positions": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Format Alert": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "risk-management-monitor",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "risk",
+      "name": "Risk Management"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "monitoring",
+      "name": "Monitoring"
+    }
+  ]
+} 

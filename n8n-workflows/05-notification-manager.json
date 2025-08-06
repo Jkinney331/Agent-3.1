@@ -1,0 +1,336 @@
+{
+  "name": "🔔 Notification Manager",
+  "description": "Central notification hub for trading alerts, performance reports, and error handling",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "webhookCall",
+        "httpMethod": "POST",
+        "path": "trading-notification",
+        "options": {}
+      },
+      "id": "notification-webhook",
+      "name": "📥 Notification Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "trading-notification-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "notification-type-trading",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "TRADING_OPPORTUNITY",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-risk",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "RISK_ALERT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-portfolio",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "PORTFOLIO_PERFORMANCE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-market",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "MARKET_INTELLIGENCE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-report",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "DAILY_REPORT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "notification-router",
+      "name": "🎯 Notification Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-priority",
+              "leftValue": "={{ $json.body.priority === 'HIGH' || $json.body.level === 'CRITICAL' || $json.body.type === 'EMERGENCY' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "priority-check",
+      "name": "🚨 Priority Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Advanced Notification Formatter\nconst notification = $input.first().json.body;\nconst timestamp = new Date().toISOString();\nconst readableTime = new Date().toLocaleString();\n\n// Priority and urgency mapping\nconst priorityConfig = {\n  HIGH: { emoji: '🚨', color: '#FF4444', urgency: 'URGENT' },\n  MEDIUM: { emoji: '⚠️', color: '#FFA500', urgency: 'MEDIUM' },\n  LOW: { emoji: 'ℹ️', color: '#4CAF50', urgency: 'LOW' },\n  CRITICAL: { emoji: '🔥', color: '#8B0000', urgency: 'CRITICAL' }\n};\n\n// Type-specific formatting\nconst typeFormatters = {\n  TRADING_OPPORTUNITY: (data) => ({\n    title: `${priorityConfig.HIGH.emoji} Trading Opportunity: ${data.symbol?.toUpperCase()}`,\n    description: `${data.action} signal detected with ${data.confidence}% confidence`,\n    fields: [\n      { name: 'Symbol', value: data.symbol?.toUpperCase(), inline: true },\n      { name: 'Action', value: data.action, inline: true },\n      { name: 'Confidence', value: `${data.confidence}%`, inline: true },\n      { name: 'Price', value: `$${data.price}`, inline: true },\n      { name: 'Level', value: data.level, inline: true },\n      { name: 'Score', value: data.score, inline: true }\n    ],\n    color: priorityConfig.HIGH.color\n  }),\n  \n  RISK_ALERT: (data) => ({\n    title: `${priorityConfig.CRITICAL.emoji} Risk Management Alert`,\n    description: data.message || 'Risk threshold exceeded',\n    fields: [\n      { name: 'Risk Level', value: data.level, inline: true },\n      { name: 'Risk Percentage', value: data.risk, inline: true },\n      { name: 'P&L', value: data.pnl, inline: true },\n      { name: 'Positions', value: data.positions, inline: true },\n      { name: 'Leverage', value: data.leverage, inline: true }\n    ],\n    color: priorityConfig.CRITICAL.color\n  }),\n  \n  PORTFOLIO_PERFORMANCE: (data) => ({\n    title: `${priorityConfig.MEDIUM.emoji} Portfolio Performance Alert`,\n    description: `Portfolio requires attention - ${data.action}`,\n    fields: [\n      { name: 'Total Return', value: data.totalReturn, inline: true },\n      { name: 'Total Equity', value: data.equity, inline: true },\n      { name: 'Positions', value: data.positions, inline: true },\n      { name: 'Leverage', value: data.leverage, inline: true },\n      { name: 'Win Rate', value: data.winRate, inline: true },\n      { name: 'Priority', value: data.priority, inline: true }\n    ],\n    color: data.priority === 'HIGH' ? priorityConfig.HIGH.color : priorityConfig.MEDIUM.color\n  }),\n  \n  MARKET_INTELLIGENCE: (data) => ({\n    title: `${priorityConfig.LOW.emoji} Market Intelligence Update`,\n    description: `Market analysis complete - ${data.action}`,\n    fields: [\n      { name: 'Market Bias', value: data.bias, inline: true },\n      { name: 'Strength', value: data.strength, inline: true },\n      { name: 'Confidence', value: data.confidence, inline: true },\n      { name: 'Opportunities', value: data.opportunities, inline: true },\n      { name: 'Signals', value: data.signals, inline: false }\n    ],\n    color: priorityConfig.LOW.color\n  }),\n  \n  DAILY_REPORT: (data) => ({\n    title: `${priorityConfig.LOW.emoji} Daily Trading Report - Grade ${data.summary?.grade}`,\n    description: `Daily performance summary and insights`,\n    fields: [\n      { name: 'Performance Grade', value: data.summary?.grade, inline: true },\n      { name: 'Score', value: data.summary?.score, inline: true },\n      { name: 'Total Return', value: data.summary?.return, inline: true },\n      { name: 'Equity', value: data.summary?.equity, inline: true },\n      { name: 'Win Rate', value: data.summary?.winRate, inline: true },\n      { name: 'Active Positions', value: data.summary?.positions, inline: true }\n    ],\n    color: data.summary?.grade === 'A' ? '#4CAF50' : \n           data.summary?.grade === 'F' ? '#FF4444' : '#FFA500'\n  })\n};\n\n// Format notification based on type\nconst formatter = typeFormatters[notification.type];\nconst formattedNotification = formatter ? formatter(notification) : {\n  title: `${priorityConfig.LOW.emoji} Trading Bot Notification`,\n  description: 'Unknown notification type',\n  fields: [{ name: 'Raw Data', value: JSON.stringify(notification), inline: false }],\n  color: priorityConfig.LOW.color\n};\n\n// Add common metadata\nconst finalNotification = {\n  ...formattedNotification,\n  timestamp: readableTime,\n  originalType: notification.type,\n  priority: notification.priority || 'LOW',\n  urgency: priorityConfig[notification.priority || 'LOW']?.urgency || 'LOW',\n  \n  // Slack/Discord webhook format\n  embeds: [{\n    title: formattedNotification.title,\n    description: formattedNotification.description,\n    color: parseInt(formattedNotification.color.replace('#', ''), 16),\n    fields: formattedNotification.fields,\n    footer: {\n      text: `AI Trading Bot • ${readableTime}`,\n      icon_url: 'https://cdn-icons-png.flaticon.com/512/2103/2103633.png'\n    },\n    timestamp: timestamp\n  }],\n  \n  // Console/Log format\n  logMessage: `[${readableTime}] ${notification.type}: ${formattedNotification.description}`,\n  \n  // Email format\n  emailSubject: formattedNotification.title,\n  emailBody: `${formattedNotification.description}\\n\\n${formattedNotification.fields.map(f => `${f.name}: ${f.value}`).join('\\n')}\\n\\nTimestamp: ${readableTime}`,\n  \n  // Dashboard notification format\n  dashboardNotification: {\n    id: Date.now().toString(),\n    type: notification.type,\n    title: formattedNotification.title,\n    message: formattedNotification.description,\n    priority: notification.priority || 'LOW',\n    timestamp: timestamp,\n    read: false,\n    data: notification\n  }\n};\n\nreturn [{ json: { notification: finalNotification, original: notification } }];"
+      },
+      "id": "format-notification",
+      "name": "✨ Format Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "console-log",
+              "name": "logEntry",
+              "value": "={{ $json.notification.logMessage }}",
+              "type": "string"
+            },
+            {
+              "id": "notification-count",
+              "name": "notificationCount",
+              "value": "=1",
+              "type": "number"
+            },
+            {
+              "id": "processed-time",
+              "name": "processedAt",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-notification",
+      "name": "📝 Log Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "urgent-alert",
+              "name": "urgentAlert",
+              "value": "={{ {\n  alert: 'URGENT: ' + $json.notification.embeds[0].title,\n  description: $json.notification.embeds[0].description,\n  priority: 'CRITICAL',\n  requiresAction: true,\n  timestamp: $json.notification.timestamp,\n  escalate: true\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "urgent-alert",
+      "name": "🔔 Urgent Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "standard-notification",
+              "name": "standardNotification",
+              "value": "={{ {\n  notification: $json.notification.embeds[0].title,\n  message: $json.notification.embeds[0].description,\n  priority: $json.notification.priority,\n  timestamp: $json.notification.timestamp,\n  routine: true\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "standard-notification",
+      "name": "📢 Standard Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error Handler and Recovery System\nconst error = $input.first().json;\nconst timestamp = new Date().toISOString();\n\n// Categorize error types\nconst errorCategories = {\n  API_ERROR: 'External API failure',\n  TRADING_ERROR: 'Trading execution failure',\n  DATA_ERROR: 'Data processing failure',\n  SYSTEM_ERROR: 'System/Network failure',\n  VALIDATION_ERROR: 'Data validation failure'\n};\n\nconst errorType = error.code?.includes('ECONNREFUSED') ? 'API_ERROR' :\n                 error.code?.includes('MODULE_NOT_FOUND') ? 'SYSTEM_ERROR' :\n                 error.message?.includes('trading') ? 'TRADING_ERROR' :\n                 error.message?.includes('validation') ? 'VALIDATION_ERROR' :\n                 'SYSTEM_ERROR';\n\n// Recovery strategies\nconst recoveryStrategies = {\n  API_ERROR: {\n    action: 'RETRY_WITH_FALLBACK',\n    retryCount: 3,\n    retryDelay: 30000, // 30 seconds\n    fallbackAction: 'USE_CACHED_DATA'\n  },\n  TRADING_ERROR: {\n    action: 'EMERGENCY_STOP',\n    retryCount: 0,\n    escalate: true,\n    fallbackAction: 'MANUAL_INTERVENTION_REQUIRED'\n  },\n  DATA_ERROR: {\n    action: 'RETRY_WITH_VALIDATION',\n    retryCount: 2,\n    retryDelay: 10000, // 10 seconds\n    fallbackAction: 'SKIP_INVALID_DATA'\n  },\n  SYSTEM_ERROR: {\n    action: 'SYSTEM_RESTART',\n    retryCount: 1,\n    escalate: true,\n    fallbackAction: 'MAINTENANCE_MODE'\n  },\n  VALIDATION_ERROR: {\n    action: 'VALIDATE_AND_CLEAN',\n    retryCount: 1,\n    fallbackAction: 'USE_DEFAULT_VALUES'\n  }\n};\n\nconst strategy = recoveryStrategies[errorType];\n\n// Generate error report\nconst errorReport = {\n  errorId: `error-${Date.now()}`,\n  timestamp,\n  errorType,\n  category: errorCategories[errorType],\n  originalError: {\n    message: error.message || 'Unknown error',\n    code: error.code || 'NO_CODE',\n    stack: error.stack || 'No stack trace',\n    context: error.context || 'No context'\n  },\n  severity: strategy.escalate ? 'CRITICAL' : 'MEDIUM',\n  recovery: {\n    strategy: strategy.action,\n    retryCount: strategy.retryCount,\n    retryDelay: strategy.retryDelay,\n    fallbackAction: strategy.fallbackAction,\n    requiresEscalation: strategy.escalate || false\n  },\n  impact: {\n    tradingAffected: errorType === 'TRADING_ERROR',\n    dataAffected: errorType === 'DATA_ERROR' || errorType === 'API_ERROR',\n    systemAffected: errorType === 'SYSTEM_ERROR',\n    userNotificationRequired: strategy.escalate\n  },\n  recommendations: [\n    strategy.escalate ? 'Immediate attention required' : null,\n    errorType === 'API_ERROR' ? 'Check API endpoints and credentials' : null,\n    errorType === 'TRADING_ERROR' ? 'Review trading parameters and positions' : null,\n    errorType === 'SYSTEM_ERROR' ? 'Check system resources and connectivity' : null,\n    'Monitor system stability after recovery'\n  ].filter(Boolean)\n};\n\nreturn [{ json: { errorReport, originalError: error } }];"
+      },
+      "id": "error-handler",
+      "name": "🚫 Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Notification Analytics and Insights\nconst notifications = $input.all();\nconst timestamp = new Date().toISOString();\nconst timeWindow = 3600000; // 1 hour in milliseconds\nconst now = Date.now();\n\n// Filter recent notifications (last hour)\nconst recentNotifications = notifications.filter(n => {\n  const notifTime = new Date(n.json.notification?.timestamp || n.json.processedAt).getTime();\n  return (now - notifTime) <= timeWindow;\n});\n\n// Analyze notification patterns\nconst analytics = {\n  summary: {\n    totalNotifications: notifications.length,\n    recentNotifications: recentNotifications.length,\n    timeWindow: '1 hour',\n    analysisTime: timestamp\n  },\n  \n  byType: recentNotifications.reduce((acc, n) => {\n    const type = n.json.notification?.originalType || 'UNKNOWN';\n    acc[type] = (acc[type] || 0) + 1;\n    return acc;\n  }, {}),\n  \n  byPriority: recentNotifications.reduce((acc, n) => {\n    const priority = n.json.notification?.priority || 'LOW';\n    acc[priority] = (acc[priority] || 0) + 1;\n    return acc;\n  }, {}),\n  \n  alerts: {\n    highVolumeAlert: recentNotifications.length > 10,\n    criticalAlerts: recentNotifications.filter(n => n.json.notification?.priority === 'CRITICAL').length,\n    errorAlerts: recentNotifications.filter(n => n.json.errorReport).length,\n    tradingAlerts: recentNotifications.filter(n => n.json.notification?.originalType === 'TRADING_OPPORTUNITY').length\n  },\n  \n  trends: {\n    averageNotificationsPerHour: recentNotifications.length,\n    mostCommonType: Object.keys(recentNotifications.reduce((acc, n) => {\n      const type = n.json.notification?.originalType || 'UNKNOWN';\n      acc[type] = (acc[type] || 0) + 1;\n      return acc;\n    }, {})).reduce((a, b) => \n      (recentNotifications.filter(n => n.json.notification?.originalType === a).length >\n       recentNotifications.filter(n => n.json.notification?.originalType === b).length) ? a : b,\n      'NONE'\n    ),\n    criticalRate: recentNotifications.length > 0 ? \n      (recentNotifications.filter(n => n.json.notification?.priority === 'CRITICAL').length / recentNotifications.length * 100).toFixed(1) + '%' : '0%'\n  },\n  \n  recommendations: [\n    recentNotifications.length > 15 ? '⚠️ High notification volume - check for issues' : null,\n    recentNotifications.filter(n => n.json.notification?.priority === 'CRITICAL').length > 3 ? '🚨 Multiple critical alerts - immediate attention required' : null,\n    recentNotifications.filter(n => n.json.errorReport).length > 2 ? '🔧 Multiple errors detected - system health check recommended' : null,\n    recentNotifications.length === 0 ? 'ℹ️ No recent notifications - system running smoothly' : null,\n    '📊 Regular monitoring recommended'\n  ].filter(Boolean)\n};\n\nreturn [{ json: { notificationAnalytics: analytics } }];"
+      },
+      "id": "analytics-engine",
+      "name": "📊 Analytics Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 400]
+    }
+  ],
+  "connections": {
+    "📥 Notification Webhook": {
+      "main": [
+        [
+          {
+            "node": "🎯 Notification Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Notification Router": {
+      "main": [
+        [
+          {
+            "node": "🚨 Priority Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚫 Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Priority Check": {
+      "main": [
+        [
+          {
+            "node": "🔔 Urgent Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📢 Standard Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔔 Urgent Alert": {
+      "main": [
+        [
+          {
+            "node": "✨ Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 Standard Notification": {
+      "main": [
+        [
+          {
+            "node": "✨ Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✨ Format Notification": {
+      "main": [
+        [
+          {
+            "node": "📝 Log Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log Notification": {
+      "main": [
+        [
+          {
+            "node": "📊 Analytics Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "notification-manager",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "notifications",
+      "name": "Notifications"
+    },
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "alerts",
+      "name": "Alerts"
+    }
+  ]
+} 
