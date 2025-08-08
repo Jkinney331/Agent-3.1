@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 3.1 - n8n API Integration Code Snippets</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 15px 20px;
+            background: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+            border-bottom-color: #4c51bf;
+        }
+        
+        .code-container {
+            background: #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        
+        .code-header {
+            background: #334155;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #475569;
+        }
+        
+        .code-title {
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #5a67d8;
+        }
+        
+        .code-content {
+            padding: 0;
+        }
+        
+        pre {
+            padding: 25px;
+            margin: 0;
+            background: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-x: auto;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .endpoint-info {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .endpoint-info h3 {
+            color: #1e293b;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .endpoint-info p {
+            color: #64748b;
+            margin-bottom: 15px;
+        }
+        
+        .endpoint-url {
+            background: #f1f5f9;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #475569;
+            border-left: 4px solid #667eea;
+        }
+        
+        /* Syntax highlighting */
+        .keyword { color: #c792ea; }
+        .string { color: #c3e88d; }
+        .number { color: #f78c6c; }
+        .comment { color: #546e7a; font-style: italic; }
+        .function { color: #82aaff; }
+        .property { color: #ffcb6b; }
+        .operator { color: #89ddff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Agent 3.1 n8n API Integration</h1>
+            <p>Ready-to-use code snippets for your trading bot workflows</p>
+        </div>
+        
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('embed')">📱 Embed</button>
+            <button class="tab-btn" onclick="showTab('python')">🐍 Python</button>
+            <button class="tab-btn" onclick="showTab('javascript')">📜 JavaScript</button>
+            <button class="tab-btn" onclick="showTab('curl')">🔧 CURL</button>
+        </div>
+        
+        <!-- Embed Tab (Like Flowise) -->
+        <div id="embed" class="tab-content active">
+            <div class="endpoint-info">
+                <h3>📊 Execute Trade via n8n Workflow</h3>
+                <p>Trigger the Advanced AI Trading Engine workflow to execute trades with real market analysis</p>
+                <div class="endpoint-url">POST https://your-n8n-host/webhook/api-integration</div>
+            </div>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-title">Execute Trade - JavaScript</span>
+                    <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+                </div>
+                <div class="code-content">
+<pre><span class="keyword">async function</span> <span class="function">query</span>(<span class="property">data</span>) {
+    <span class="keyword">const</span> response = <span class="keyword">await</span> <span class="function">fetch</span>(
+        <span class="string">"https://your-n8n-host/webhook/api-integration"</span>,
+        {
+            <span class="property">headers</span>: {
+                <span class="property">Authorization</span>: <span class="string">"Bearer ai-trading-bot-secure-2025-integration"</span>,
+                <span class="string">"Content-Type"</span>: <span class="string">"application/json"</span>
+            },
+            <span class="property">method</span>: <span class="string">"POST"</span>,
+            <span class="property">body</span>: JSON.<span class="function">stringify</span>(data)
+        }
+    );
+    <span class="keyword">const</span> result = <span class="keyword">await</span> response.<span class="function">json</span>();
+    <span class="keyword">return</span> result;
+}
+
+<span class="function">query</span>({
+    <span class="string">"action"</span>: <span class="string">"execute_trade"</span>,
+    <span class="string">"payload"</span>: {
+        <span class="string">"symbol"</span>: <span class="string">"BTCUSD"</span>,
+        <span class="string">"side"</span>: <span class="string">"buy"</span>,
+        <span class="string">"quantity"</span>: <span class="number">0.01</span>
+    }
+}).then((<span class="property">response</span>) => {
+    console.<span class="function">log</span>(response);
+});</pre>
+                </div>
+            </div>
+            
+            <div class="endpoint-info">
+                <h3>💼 Check Portfolio Status</h3>
+                <p>Get real-time portfolio data from the Portfolio & Risk Monitor workflow</p>
+            </div>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-title">Portfolio Status - JavaScript</span>
+                    <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+                </div>
+                <div class="code-content">
+<pre><span class="keyword">async function</span> <span class="function">getPortfolio</span>() {
+    <span class="keyword">const</span> response = <span class="keyword">await</span> <span class="function">fetch</span>(
+        <span class="string">"https://your-n8n-host/webhook/api-integration"</span>,
+        {
+            <span class="property">headers</span>: {
+                <span class="property">Authorization</span>: <span class="string">"Bearer ai-trading-bot-secure-2025-integration"</span>,
+                <span class="string">"Content-Type"</span>: <span class="string">"application/json"</span>
+            },
+            <span class="property">method</span>: <span class="string">"POST"</span>,
+            <span class="property">body</span>: JSON.<span class="function">stringify</span>({
+                <span class="string">"action"</span>: <span class="string">"check_portfolio"</span>,
+                <span class="string">"payload"</span>: {
+                    <span class="string">"userId"</span>: <span class="string">"user123"</span>
+                }
+            })
+        }
+    );
+    <span class="keyword">return</span> <span class="keyword">await</span> response.<span class="function">json</span>();
+}</pre>
+                </div>
+            </div>
+            
+            <div class="endpoint-info">
+                <h3>📱 Send Smart Notification</h3>
+                <p>Trigger notifications via Telegram, email, or other channels</p>
+            </div>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-title">Send Notification - JavaScript</span>
+                    <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+                </div>
+                <div class="code-content">
+<pre><span class="keyword">async function</span> <span class="function">sendNotification</span>(<span class="property">message</span>, <span class="property">priority</span> = <span class="string">'normal'</span>) {
+    <span class="keyword">const</span> response = <span class="keyword">await</span> <span class="function">fetch</span>(
+        <span class="string">"https://your-n8n-host/webhook/api-integration"</span>,
+        {
+            <span class="property">headers</span>: {
+                <span class="property">Authorization</span>: <span class="string">"Bearer ai-trading-bot-secure-2025-integration"</span>,
+                <span class="string">"Content-Type"</span>: <span class="string">"application/json"</span>
+            },
+            <span class="property">method</span>: <span class="string">"POST"</span>,
+            <span class="property">body</span>: JSON.<span class="function">stringify</span>({
+                <span class="string">"action"</span>: <span class="string">"send_notification"</span>,
+                <span class="string">"payload"</span>: {
+                    <span class="string">"message"</span>: message,
+                    <span class="string">"channels"</span>: [<span class="string">'telegram'</span>],
+                    <span class="string">"priority"</span>: priority
+                }
+            })
+        }
+    );
+    <span class="keyword">return</span> <span class="keyword">await</span> response.<span class="function">json</span>();
+}</pre>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Python Tab -->
+        <div id="python" class="tab-content">
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-title">Python Integration</span>
+                    <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+                </div>
+                <div class="code-content">
+<pre><span class="keyword">import</span> requests
+<span class="keyword">import</span> json
+
+<span class="keyword">def</span> <span class="function">execute_trade</span>(symbol, side, quantity):
+    url = <span class="string">"https://your-n8n-host/webhook/api-integration"</span>
+    
+    headers = {
+        <span class="string">"Authorization"</span>: <span class="string">"Bearer ai-trading-bot-secure-2025-integration"</span>,
+        <span class="string">"Content-Type"</span>: <span class="string">"application/json"</span>
+    }
+    
+    data = {
+        <span class="string">"action"</span>: <span class="string">"execute_trade"</span>,
+        <span class="string">"payload"</span>: {
+            <span class="string">"symbol"</span>: symbol,
+            <span class="string">"side"</span>: side,
+            <span class="string">"quantity"</span>: quantity
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    <span class="keyword">return</span> response.json()
+
+<span class="comment"># Execute a trade</span>
+result = <span class="function">execute_trade</span>(<span class="string">"BTCUSD"</span>, <span class="string">"buy"</span>, <span class="number">0.01</span>)
+<span class="function">print</span>(result)</pre>
+                </div>
+            </div>
+        </div>
+        
+        <!-- JavaScript Tab -->
+        <div id="javascript" class="tab-content">
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-title">JavaScript SDK</span>
+                    <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+                </div>
+                <div class="code-content">
+<pre><span class="keyword">class</span> <span class="function">Agent31Client</span> {
+    <span class="keyword">constructor</span>(apiKey, baseUrl) {
+        <span class="keyword">this</span>.apiKey = apiKey;
+        <span class="keyword">this</span>.baseUrl = baseUrl;
+    }
+    
+    <span class="keyword">async</span> <span class="function">request</span>(action, payload) {
+        <span class="keyword">const</span> response = <span class="keyword">await</span> <span class="function">fetch</span>(<span class="string">`</span><span class="keyword">this</span>.baseUrl<span class="string">/webhook/api-integration`</span>, {
+            method: <span class="string">'POST'</span>,
+            headers: {
+                <span class="string">'Authorization'</span>: <span class="string">`Bearer </span><span class="keyword">this</span>.apiKey<span class="string">`</span>,
+                <span class="string">'Content-Type'</span>: <span class="string">'application/json'</span>
+            },
+            body: JSON.<span class="function">stringify</span>({ action, payload })
+        });
+        
+        <span class="keyword">return</span> <span class="keyword">await</span> response.<span class="function">json</span>();
+    }
+    
+    <span class="keyword">async</span> <span class="function">executeTrade</span>(symbol, side, quantity) {
+        <span class="keyword">return</span> <span class="keyword">this</span>.<span class="function">request</span>(<span class="string">'execute_trade'</span>, { symbol, side, quantity });
+    }
+    
+    <span class="keyword">async</span> <span class="function">getPortfolio</span>() {
+        <span class="keyword">return</span> <span class="keyword">this</span>.<span class="function">request</span>(<span class="string">'check_portfolio'</span>, {});
+    }
+    
+    <span class="keyword">async</span> <span class="function">sendAlert</span>(message, priority = <span class="string">'normal'</span>) {
+        <span class="keyword">return</span> <span class="keyword">this</span>.<span class="function">request</span>(<span class="string">'send_notification'</span>, { 
+            message, 
+            channels: [<span class="string">'telegram'</span>], 
+            priority 
+        });
+    }
+}
+
+<span class="comment">// Usage</span>
+<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">Agent31Client</span>(
+    <span class="string">'ai-trading-bot-secure-2025-integration'</span>,
+    <span class="string">'https://your-n8n-host'</span>
+);
+
+<span class="keyword">await</span> client.<span class="function">executeTrade</span>(<span class="string">'ETHUSD'</span>, <span class="string">'buy'</span>, <span class="number">0.1</span>);</pre>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CURL Tab -->
+        <div id="curl" class="tab-content">
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-title">CURL Commands</span>
+                    <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+                </div>
+                <div class="code-content">
+<pre><span class="comment"># Execute a trade</span>
+curl -X POST "https://your-n8n-host/webhook/api-integration" \
+  -H "Authorization: Bearer ai-trading-bot-secure-2025-integration" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "execute_trade",
+    "payload": {
+      "symbol": "BTCUSD",
+      "side": "buy",
+      "quantity": 0.01
+    }
+  }'
+
+<span class="comment"># Check portfolio status</span>
+curl -X POST "https://your-n8n-host/webhook/api-integration" \
+  -H "Authorization: Bearer ai-trading-bot-secure-2025-integration" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "check_portfolio",
+    "payload": {
+      "userId": "user123"
+    }
+  }'
+
+<span class="comment"># Send notification</span>
+curl -X POST "https://your-n8n-host/webhook/api-integration" \
+  -H "Authorization: Bearer ai-trading-bot-secure-2025-integration" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "send_notification", 
+    "payload": {
+      "message": "Trade executed successfully",
+      "channels": ["telegram"],
+      "priority": "high"
+    }
+  }'</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+        
+        function copyCode(button) {
+            const codeContent = button.closest('.code-container').querySelector('pre').textContent;
+            
+            // Create temporary textarea to copy content
+            const textarea = document.createElement('textarea');
+            textarea.value = codeContent;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            // Update button text temporarily
+            const originalText = button.textContent;
+            button.textContent = '✅ Copied!';
+            button.style.background = '#10b981';
+            
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '#667eea';
+            }, 2000);
+        }
+        
+        // Add syntax highlighting on load
+        document.addEventListener('DOMContentLoaded', function() {
+            // This would typically use a proper syntax highlighting library
+            // For now, we have CSS classes for basic highlighting
+        });
+    </script>
+</body>
+</html>
