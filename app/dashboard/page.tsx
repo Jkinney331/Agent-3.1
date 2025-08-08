@@ -6,6 +6,10 @@ import AIAnalysis from '@/components/dashboard/ai-analysis';
 import { MarketOverview } from '@/components/dashboard/market-overview';
 import { LiveCryptoWidget } from '@/components/crypto/live-crypto-widget';
 import { CursorStyleChatPanel } from '@/components/ai-chat/cursor-style-chat-panel';
+import { N8NWorkflowStatus } from '@/components/dashboard/n8n-workflow-status';
+import { APIConnectionStatus } from '@/components/dashboard/api-connection-status';
+import { WorkflowExecutionHistory } from '@/components/dashboard/workflow-execution-history';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -22,24 +26,24 @@ export default function DashboardPage() {
           <DashboardHeader />
           
           {/* Enhanced Phase Status - COMPACT */}
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-3 shadow-sm">
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-3 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-medium text-green-800 flex items-center gap-2">
-                  🚀 Phase 4: Enhanced Trading Execution Engine Active
+                <h3 className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                  ⚡ Phase 3: n8n Workflow Integration Complete
                 </h3>
-                <p className="text-xs text-green-600 mt-1">
-                  AI Trading Agent with full execution capabilities, Cursor-style chat, bidirectional workflow integration
+                <p className="text-xs text-blue-600 mt-1">
+                  AI Trading with n8n automation, real-time workflow monitoring, and enhanced decision analytics
                 </p>
               </div>
               <div className="flex flex-wrap gap-1">
-                <Link href="/mcp-test" className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors">
+                <Link href="/mcp-test" className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors">
                   Test APIs
                 </Link>
-                <Link href="/analytics" className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors">
+                <Link href="/analytics" className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 transition-colors">
                   AI Analysis
                 </Link>
-                <Link href="/strategy" className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 transition-colors">
+                <Link href="/strategy" className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors">
                   Strategies
                 </Link>
                 <Link href="/analytics" className="text-xs bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 transition-colors">
@@ -54,13 +58,38 @@ export default function DashboardPage() {
             <PortfolioMetrics />
           </div>
 
-          {/* Trading Activity & AI Analysis - PROPERLY STRUCTURED */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <div className="xl:col-span-2">
-              <TradingActivity />
+          {/* n8n Workflow Status & API Connections - NEW SECTION */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="order-1">
+              <ErrorBoundary>
+                <N8NWorkflowStatus />
+              </ErrorBoundary>
             </div>
-            <div className="xl:col-span-1">
-              <AIAnalysis />
+            <div className="order-2">
+              <ErrorBoundary>
+                <APIConnectionStatus />
+              </ErrorBoundary>
+            </div>
+          </div>
+
+          {/* Enhanced Trading Activity with AI Decisions - FULL WIDTH */}
+          <div className="w-full">
+            <ErrorBoundary>
+              <TradingActivity />
+            </ErrorBoundary>
+          </div>
+
+          {/* Workflow Execution History & AI Analysis */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="xl:col-span-2 order-1 xl:order-1">
+              <ErrorBoundary>
+                <WorkflowExecutionHistory />
+              </ErrorBoundary>
+            </div>
+            <div className="xl:col-span-1 order-2 xl:order-2">
+              <ErrorBoundary>
+                <AIAnalysis />
+              </ErrorBoundary>
             </div>
           </div>
 

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-08-08T17-47-59-176Z",
+  "version": "1.0",
+  "type": "incremental_backup",
+  "since": "2025-08-07T17:47:59.178Z",
+  "tables": {
+    "trading_orders": [],
+    "trading_positions": [],
+    "ai_decisions": [],
+    "performance_metrics": [],
+    "portfolio_snapshots": []
+  }
+}

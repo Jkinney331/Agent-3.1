@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface PortfolioData {
   totalBalance: number
@@ -10,75 +10,182 @@ interface PortfolioData {
   totalReturnPercentage: number
 }
 
+interface Position {
+  symbol: string
+  quantity: number
+  marketValue: number
+  unrealizedPnL: number
+  unrealizedPnLPercent: number
+  side: string
+  avgEntryPrice: number
+  currentPrice: number
+}
+
+interface RecentOrder {
+  id: string
+  symbol: string
+  side: string
+  quantity: number
+  price: number
+  status: string
+  orderType: string
+  createdAt: string
+  filledAt?: string
+}
+
+interface MarketData {
+  symbol: string
+  price: number
+  change24h: number
+  changePercent: number
+  timestamp: string
+  source: string
+}
+
 interface TradingData {
   portfolioData: PortfolioData | null
+  positions: Position[]
+  recentOrders: RecentOrder[]
+  marketData: { [symbol: string]: MarketData }
   connectionStatus: 'connected' | 'disconnected' | 'error'
   latency: string | null
   isLoading: boolean
+  error: string | null
+  refreshData: () => Promise<void>
+  getMarketPrice: (symbol: string) => Promise<MarketData | null>
 }
 
 export function useTradingData(): TradingData {
   const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null)
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'error'>('connected')
-  const [latency, setLatency] = useState<string | null>('87')
+  const [positions, setPositions] = useState<Position[]>([])
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
+  const [marketData, setMarketData] = useState<{ [symbol: string]: MarketData }>({})
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
+  const [latency, setLatency] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Simulate loading and connecting to Binance
-    const timer = setTimeout(() => {
-      setPortfolioData({
-        totalBalance: 50247.85,
-        dailyPnL: 1247.85,
-        dailyPnLPercentage: 2.49,
-        activePositions: 3,
-        availableBalance: 34999.65,
-        totalReturn: 247.85,
-        totalReturnPercentage: 0.50,
-      })
-      setConnectionStatus('connected')
-      setLatency('87')
-      setIsLoading(false)
-    }, 1000)
+  const fetchPortfolioData = useCallback(async () => {
+    try {
+      const startTime = Date.now()
+      setError(null)
+      
+      const response = await fetch('/api/trading/real-time-data?action=portfolio-data')
+      const result = await response.json()
+      
+      const endTime = Date.now()
+      const responseLatency = (endTime - startTime).toString()
+      setLatency(responseLatency)
 
-    return () => clearTimeout(timer)
+      if (result.success && result.data) {
+        const { account, positions: positionsData, recentOrders: ordersData } = result.data
+
+        // Update portfolio data
+        setPortfolioData({
+          totalBalance: account.portfolioValue || account.equity,
+          dailyPnL: account.dayPnL,
+          dailyPnLPercentage: account.portfolioValue > 0 ? (account.dayPnL / account.portfolioValue) * 100 : 0,
+          activePositions: positionsData.length,
+          availableBalance: account.cash,
+          totalReturn: account.totalPnL,
+          totalReturnPercentage: account.totalPnL > 0 ? (account.totalPnL / 50000) * 100 : 0, // Assuming $50k initial
+        })
+
+        // Update positions
+        setPositions(positionsData || [])
+        
+        // Update recent orders
+        setRecentOrders(ordersData || [])
+
+        setConnectionStatus('connected')
+      } else {
+        console.warn('Portfolio data API returned non-success response:', result)
+        setConnectionStatus('error')
+        setError(result.error || 'Failed to fetch portfolio data')
+      }
+    } catch (err) {
+      console.error('Error fetching portfolio data:', err)
+      setConnectionStatus('error')
+      setError(err instanceof Error ? err.message : 'Unknown error fetching portfolio data')
+    }
   }, [])
 
-  // Simulate real-time updates
-  useEffect(() => {
-    if (!portfolioData) return
+  const getMarketPrice = useCallback(async (symbol: string): Promise<MarketData | null> => {
+    try {
+      const startTime = Date.now()
+      const response = await fetch(`/api/trading/real-time-data?action=current-price&symbol=${encodeURIComponent(symbol)}`)
+      const result = await response.json()
+      
+      const endTime = Date.now()
+      const responseLatency = (endTime - startTime).toString()
+      setLatency(responseLatency)
 
-    const interval = setInterval(() => {
-      setPortfolioData(prev => {
-        if (!prev) return null
+      if (result.success && result.data) {
+        const priceData = result.data as MarketData
         
-        // Simulate small fluctuations
-        const variation = (Math.random() - 0.5) * 0.002 // ±0.2%
-        const newBalance = prev.totalBalance * (1 + variation)
-        const newDailyPnL = newBalance - 50000 // Initial balance
-        
-        return {
+        // Cache the market data
+        setMarketData(prev => ({
           ...prev,
-          totalBalance: newBalance,
-          dailyPnL: newDailyPnL,
-          dailyPnLPercentage: (newDailyPnL / 50000) * 100,
-        }
-      })
+          [symbol]: priceData
+        }))
 
-      // Simulate latency changes
-      setLatency(prev => {
-        const currentLatency = parseInt(prev || '87')
-        const newLatency = Math.max(10, Math.min(500, currentLatency + (Math.random() - 0.5) * 20))
-        return Math.round(newLatency).toString()
-      })
-    }, 2000) // Update every 2 seconds
+        return priceData
+      } else {
+        console.warn(`Failed to fetch price for ${symbol}:`, result.error)
+        return null
+      }
+    } catch (err) {
+      console.error(`Error fetching price for ${symbol}:`, err)
+      return null
+    }
+  }, [])
+
+  const refreshData = useCallback(async () => {
+    setIsLoading(true)
+    await fetchPortfolioData()
+    setIsLoading(false)
+  }, [fetchPortfolioData])
+
+  // Initial data fetch
+  useEffect(() => {
+    refreshData()
+  }, [refreshData])
+
+  // Real-time updates via polling
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPortfolioData()
+    }, 30000) // Update every 30 seconds
 
     return () => clearInterval(interval)
-  }, [portfolioData])
+  }, [fetchPortfolioData])
+
+  // Market data updates for active positions
+  useEffect(() => {
+    if (positions.length === 0) return
+
+    const updateMarketData = async () => {
+      for (const position of positions) {
+        await getMarketPrice(position.symbol)
+      }
+    }
+
+    updateMarketData()
+
+    const interval = setInterval(updateMarketData, 15000) // Update prices every 15 seconds
+    return () => clearInterval(interval)
+  }, [positions, getMarketPrice])
 
   return {
     portfolioData,
+    positions,
+    recentOrders,
+    marketData,
     connectionStatus,
     latency,
     isLoading,
+    error,
+    refreshData,
+    getMarketPrice,
   }
 } 

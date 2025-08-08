@@ -30,7 +30,7 @@ export class TelegramScheduler {
   private formatter: MessageFormatter;
   private scheduledJobs: Map<string, ScheduledJob>;
   private intervalId: NodeJS.Timeout | null = null;
-  private isRunning = false;
+  private _isRunning = false;
 
   constructor(bot: any, supabase: any) {
     this.bot = bot;
@@ -40,7 +40,7 @@ export class TelegramScheduler {
   }
 
   public async start(): Promise<void> {
-    if (this.isRunning) return;
+    if (this._isRunning) return;
 
     console.log('Starting Telegram Scheduler...');
     
@@ -54,12 +54,12 @@ export class TelegramScheduler {
       });
     }, 60000); // 60 seconds
 
-    this.isRunning = true;
+    this._isRunning = true;
     console.log('Telegram Scheduler started');
   }
 
   public async stop(): Promise<void> {
-    if (!this.isRunning) return;
+    if (!this._isRunning) return;
 
     console.log('Stopping Telegram Scheduler...');
     
@@ -68,7 +68,7 @@ export class TelegramScheduler {
       this.intervalId = null;
     }
     
-    this.isRunning = false;
+    this._isRunning = false;
     console.log('Telegram Scheduler stopped');
   }
 
@@ -534,7 +534,7 @@ export class TelegramScheduler {
     return this.scheduledJobs.size;
   }
 
-  public isRunning(): boolean {
-    return this.isRunning;
+  public isSchedulerRunning(): boolean {
+    return this._isRunning;
   }
 }

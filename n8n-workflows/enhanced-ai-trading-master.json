@@ -1,0 +1,453 @@
+{
+  "name": "🚀 ADVANCED AI TRADING ENGINE",
+  "description": "Production-ready AI trading system with real API integrations and comprehensive risk management",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "market-data-trigger",
+      "name": "⚡ Market Data Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.COINGECKO_BASE_URL }}/simple/price",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "bitcoin,ethereum,solana,cardano,polygon"
+            },
+            {
+              "name": "vs_currencies",
+              "value": "usd"
+            },
+            {
+              "name": "include_24hr_change",
+              "value": "true"
+            },
+            {
+              "name": "include_market_cap",
+              "value": "true"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-cg-pro-api-key",
+              "value": "={{ $vars.COINGECKO_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "fetch-crypto-prices",
+      "name": "📊 Fetch Crypto Prices",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.ALPHA_VANTAGE_BASE_URL }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "function",
+              "value": "CRYPTO_RATING"
+            },
+            {
+              "name": "symbol",
+              "value": "BTC"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $vars.ALPHA_VANTAGE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "fetch-market-sentiment",
+      "name": "🧠 Fetch Market Sentiment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.APP_BASE_URL }}/api/ai-analysis",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"marketData\": $input.first().json,\n  \"sentiment\": $input.all()[1].json,\n  \"capital\": $vars.TRADING_CAPITAL,\n  \"riskTolerance\": $vars.RISK_TOLERANCE,\n  \"timestamp\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.API_INTEGRATION_BEARER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 2
+          }
+        }
+      },
+      "id": "ai-market-analysis",
+      "name": "🤖 AI Market Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced AI Decision Processing with Real-Time Risk Assessment\nconst marketData = $input.first().json || {};\nconst aiAnalysis = $input.all()[2]?.json || {};\nconst timestamp = new Date().toISOString();\n\nconsole.log('🧠 Enhanced AI Analysis Processing:', {\n  marketDataKeys: Object.keys(marketData),\n  aiAnalysisSuccess: aiAnalysis.success,\n  timestamp\n});\n\n// Validate AI analysis response\nif (!aiAnalysis.success || !aiAnalysis.signal) {\n  return [{\n    json: {\n      error: 'AI analysis failed',\n      details: aiAnalysis.error || 'No signal generated',\n      shouldTrade: false,\n      riskLevel: 'HIGH',\n      timestamp\n    }\n  }];\n}\n\nconst signal = aiAnalysis.signal;\n\n// Enhanced risk assessment parameters\nconst riskFactors = {\n  marketVolatility: Math.abs(marketData.bitcoin?.usd_24h_change || 0) > 5,\n  lowConfidence: signal.confidence < 70,\n  poorRiskReward: signal.riskReward < 2.0,\n  highLeverage: (signal.leverage || 1) > 2,\n  concentrationRisk: (signal.positionSize || 0) > 0.1 // Max 10% position size\n};\n\n// Calculate composite risk score\nconst riskScore = Object.values(riskFactors).filter(Boolean).length;\nconst maxRiskScore = Object.keys(riskFactors).length;\nconst riskPercentage = (riskScore / maxRiskScore) * 100;\n\n// Enhanced trading decision logic\nconst tradingCriteria = {\n  minimumConfidence: signal.confidence >= 75,\n  goodRiskReward: signal.riskReward >= 2.5,\n  acceptableRisk: riskScore <= 2,\n  validPositionSize: signal.positionSize > 0 && signal.positionSize <= parseFloat(process.env.MAX_POSITION_SIZE || '0.1'),\n  marketConditions: !riskFactors.marketVolatility || signal.confidence >= 85\n};\n\nconst shouldTrade = Object.values(tradingCriteria).every(Boolean);\n\n// Generate comprehensive trading decision\nconst tradingDecision = {\n  symbol: signal.symbol || 'BTC',\n  action: signal.action,\n  confidence: signal.confidence,\n  riskReward: signal.riskReward,\n  positionSize: Math.min(signal.positionSize || 0.05, parseFloat(process.env.MAX_POSITION_SIZE || '0.1')),\n  leverage: Math.min(signal.leverage || 1, 2), // Cap leverage at 2x\n  reasoning: signal.reasoning,\n  shouldTrade,\n  riskAssessment: {\n    riskScore,\n    riskPercentage: Math.round(riskPercentage),\n    riskLevel: riskScore <= 1 ? 'LOW' : riskScore <= 2 ? 'MEDIUM' : 'HIGH',\n    factors: riskFactors\n  },\n  tradingCriteria,\n  marketRegime: signal.marketRegime || 'UNKNOWN',\n  entryPrice: signal.entryPrice || marketData.bitcoin?.usd,\n  stopLoss: signal.stopLoss,\n  takeProfit: signal.takeProfit,\n  timestamp,\n  sessionId: `session-${Date.now()}`,\n  \n  // Enhanced metadata\n  metadata: {\n    paperTrading: process.env.ENABLE_PAPER_TRADING === 'true',\n    liveTrading: process.env.ENABLE_LIVE_TRADING === 'true',\n    capital: parseFloat(process.env.TRADING_CAPITAL || '50000'),\n    maxDrawdown: 0.05, // 5% max drawdown\n    riskTolerance: process.env.RISK_TOLERANCE || 'MEDIUM'\n  }\n};\n\n// Log decision for audit trail\nconsole.log('📋 Trading Decision Summary:', {\n  shouldTrade,\n  symbol: tradingDecision.symbol,\n  action: tradingDecision.action,\n  confidence: tradingDecision.confidence,\n  riskLevel: tradingDecision.riskAssessment.riskLevel,\n  sessionId: tradingDecision.sessionId\n});\n\nreturn [{ json: tradingDecision }];"
+      },
+      "id": "enhanced-decision-processor",
+      "name": "🎯 Enhanced Decision Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-trade-check",
+              "leftValue": "={{ $json.shouldTrade }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "risk-level-check",
+              "leftValue": "={{ $json.riskAssessment.riskLevel }}",
+              "rightValue": "HIGH",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "enhanced-trade-gate",
+      "name": "🚦 Enhanced Trade Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.APP_BASE_URL }}/api/trading/enhanced-execution",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"tradingDecision\": $json,\n  \"executionMode\": $vars.ENABLE_PAPER_TRADING === 'true' ? 'PAPER' : 'LIVE',\n  \"credentials\": {\n    \"alpacaApiKey\": $vars.ALPACA_API_KEY,\n    \"alpacaSecretKey\": $vars.ALPACA_SECRET_KEY,\n    \"alpacaBaseUrl\": $vars.ALPACA_BASE_URL\n  },\n  \"riskParameters\": {\n    \"maxPositionSize\": $vars.MAX_POSITION_SIZE,\n    \"maxDrawdown\": 0.05,\n    \"stopLoss\": true,\n    \"takeProfit\": true\n  },\n  \"timestamp\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.API_INTEGRATION_BEARER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 2
+          }
+        }
+      },
+      "id": "execute-enhanced-trade",
+      "name": "⚡ Execute Enhanced Trade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.APP_BASE_URL }}/api/trading/log-decision",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"decision\": \"HOLD\",\n  \"reason\": \"Failed trading criteria or high risk\",\n  \"details\": {\n    \"symbol\": $json.symbol,\n    \"confidence\": $json.confidence,\n    \"riskReward\": $json.riskReward,\n    \"riskLevel\": $json.riskAssessment.riskLevel,\n    \"failedCriteria\": Object.keys($json.tradingCriteria).filter(key => !$json.tradingCriteria[key])\n  },\n  \"sessionId\": $json.sessionId,\n  \"timestamp\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.API_INTEGRATION_BEARER_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "log-hold-decision",
+      "name": "📝 Log Hold Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/trading_decisions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"session_id\": $json.sessionId,\n  \"symbol\": $json.symbol,\n  \"action\": $json.executed ? $json.action : 'HOLD',\n  \"confidence\": $json.confidence,\n  \"risk_reward\": $json.riskReward,\n  \"position_size\": $json.positionSize,\n  \"risk_level\": $json.riskAssessment?.riskLevel || 'UNKNOWN',\n  \"executed\": $json.executed || false,\n  \"reasoning\": $json.reasoning,\n  \"metadata\": $json,\n  \"created_at\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "log-to-database",
+      "name": "💾 Log to Database",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/trading-notification",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"body\": {\n    \"type\": $json.executed ? 'TRADING_OPPORTUNITY' : 'MARKET_INTELLIGENCE',\n    \"symbol\": $json.symbol,\n    \"action\": $json.executed ? $json.action : 'ANALYZED',\n    \"confidence\": $json.confidence + '%',\n    \"price\": '$' + ($json.entryPrice || 0),\n    \"level\": $json.riskAssessment?.riskLevel || 'MEDIUM',\n    \"score\": Math.round($json.confidence * ($json.riskReward || 1)),\n    \"priority\": $json.executed ? 'HIGH' : 'MEDIUM',\n    \"reasoning\": $json.reasoning,\n    \"sessionId\": $json.sessionId,\n    \"timestamp\": new Date().toISOString()\n  }\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-notification",
+      "name": "📤 Send Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1600, 400]
+    }
+  ],
+  "connections": {
+    "⚡ Market Data Trigger": {
+      "main": [
+        [
+          {
+            "node": "📊 Fetch Crypto Prices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🧠 Fetch Market Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Fetch Crypto Prices": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Market Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Fetch Market Sentiment": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Market Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Market Analysis": {
+      "main": [
+        [
+          {
+            "node": "🎯 Enhanced Decision Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Enhanced Decision Processor": {
+      "main": [
+        [
+          {
+            "node": "🚦 Enhanced Trade Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚦 Enhanced Trade Gate": {
+      "main": [
+        [
+          {
+            "node": "⚡ Execute Enhanced Trade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 Log Hold Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚡ Execute Enhanced Trade": {
+      "main": [
+        [
+          {
+            "node": "💾 Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log Hold Decision": {
+      "main": [
+        [
+          {
+            "node": "💾 Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Log to Database": {
+      "main": [
+        [
+          {
+            "node": "📤 Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow",
+    "timezone": "America/New_York"
+  },
+  "pinData": {},
+  "versionId": "2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "enhanced-ai-trading-master",
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "production",
+      "name": "Production"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "ai-trading",
+      "name": "AI Trading"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "real-apis",
+      "name": "Real APIs"
+    }
+  ]
+}

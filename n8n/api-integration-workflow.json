@@ -1,0 +1,376 @@
+{
+  "name": "🔗 API Integration Workflow - Router",
+  "description": "Central routing hub for integrating Next.js trading bot with active n8n workflows",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "path": "api-integration",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "webhook-entry-point",
+      "name": "🎯 API Entry Point",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript",
+        "jsCode": "// Validate authentication and request format\nconst headers = $json.headers || {};\nconst body = $json.body || {};\n\n// Bearer token validation\nconst auth = headers.Authorization || headers.authorization;\nconst expectedToken = `Bearer ${$vars.API_INTEGRATION_BEARER_TOKEN}`;\n\nif (!auth || auth !== expectedToken) {\n  return [{\n    json: {\n      success: false,\n      error: 'Unauthorized - Invalid or missing bearer token',\n      statusCode: 401,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Request format validation\nif (!body || typeof body !== 'object') {\n  return [{\n    json: {\n      success: false,\n      error: 'Invalid request format - JSON body required',\n      statusCode: 400,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Required field validation\nconst { action, workflow, payload, metadata } = body;\n\nif (!action) {\n  return [{\n    json: {\n      success: false,\n      error: 'Missing required field: action',\n      statusCode: 400,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Add execution metadata\nconst validatedData = {\n  action,\n  workflow: workflow || 'auto', // Auto-detect workflow if not specified\n  payload: payload || {},\n  metadata: {\n    ...metadata,\n    requestId: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,\n    timestamp: new Date().toISOString(),\n    source: 'api-integration-router'\n  },\n  originalBody: body\n};\n\nreturn [{ json: validatedData }];"
+      },
+      "id": "validate-auth-format",
+      "name": "🔐 Validate Auth & Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json.action}}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "execute_trade",
+              "output": 0
+            },
+            {
+              "value2": "get_market_data",
+              "output": 0
+            },
+            {
+              "value2": "manage_positions",
+              "output": 0
+            },
+            {
+              "value2": "create_strategy",
+              "output": 0
+            },
+            {
+              "value2": "check_portfolio",
+              "output": 1
+            },
+            {
+              "value2": "assess_risk",
+              "output": 1
+            },
+            {
+              "value2": "get_performance",
+              "output": 1
+            },
+            {
+              "value2": "monitor_positions",
+              "output": 1
+            },
+            {
+              "value2": "send_notification",
+              "output": 2
+            },
+            {
+              "value2": "create_alert",
+              "output": 2
+            },
+            {
+              "value2": "send_report",
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": 3
+      },
+      "id": "route-by-action",
+      "name": "🔀 Route by Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": "01-master-trading-orchestrator-alpaca",
+        "source": "parameter",
+        "waitForSubWorkflow": true
+      },
+      "id": "execute-trading-workflow",
+      "name": "🚀 Execute Trading Engine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "workflowId": "04-portfolio-performance",
+        "source": "parameter",
+        "waitForSubWorkflow": true
+      },
+      "id": "execute-portfolio-workflow",
+      "name": "💼 Execute Portfolio Monitor",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": "05-notification-manager",
+        "source": "parameter",
+        "waitForSubWorkflow": true
+      },
+      "id": "execute-notification-workflow",
+      "name": "📱 Execute Notification System",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript",
+        "jsCode": "// Handle unknown actions\nconst action = $json.action;\nconst supportedActions = [\n  'execute_trade', 'get_market_data', 'manage_positions', 'create_strategy',\n  'check_portfolio', 'assess_risk', 'get_performance', 'monitor_positions',\n  'send_notification', 'create_alert', 'send_report'\n];\n\nreturn [{\n  json: {\n    success: false,\n    error: `Unsupported action: ${action}`,\n    supportedActions: supportedActions,\n    statusCode: 400,\n    timestamp: new Date().toISOString(),\n    requestId: $json.metadata?.requestId\n  }\n}];"
+      },
+      "id": "handle-unknown-action",
+      "name": "❌ Handle Unknown Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 800]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript",
+        "jsCode": "// Format response from trading workflow\nconst workflowResponse = $json;\n\n// Standardize response format\nconst standardResponse = {\n  success: true,\n  data: workflowResponse,\n  source: 'trading_engine',\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  workflow: 'advanced-ai-trading-engine',\n  statusCode: 200\n};\n\nreturn [{ json: standardResponse }];"
+      },
+      "id": "format-trading-response",
+      "name": "📊 Format Trading Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript",
+        "jsCode": "// Format response from portfolio workflow\nconst workflowResponse = $json;\n\n// Standardize response format\nconst standardResponse = {\n  success: true,\n  data: workflowResponse,\n  source: 'portfolio_monitor',\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  workflow: 'portfolio-risk-monitor',\n  statusCode: 200\n};\n\nreturn [{ json: standardResponse }];"
+      },
+      "id": "format-portfolio-response",
+      "name": "📈 Format Portfolio Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript",
+        "jsCode": "// Format response from notification workflow\nconst workflowResponse = $json;\n\n// Standardize response format\nconst standardResponse = {\n  success: true,\n  data: workflowResponse,\n  source: 'notification_system',\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  workflow: 'smart-notification-system',\n  statusCode: 200\n};\n\nreturn [{ json: standardResponse }];"
+      },
+      "id": "format-notification-response",
+      "name": "🔔 Format Notification Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 600]
+    },
+    {
+      "parameters": {
+        "language": "JavaScript",
+        "jsCode": "// Global error handler\nconst error = $json.error || 'Unknown error occurred';\nconst statusCode = $json.statusCode || 500;\n\n// Format error response\nconst errorResponse = {\n  success: false,\n  error: error,\n  statusCode: statusCode,\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  requestId: $json.metadata?.requestId || $json.requestId\n};\n\nreturn [{ json: errorResponse }];"
+      },
+      "id": "format-error-response",
+      "name": "⚠️ Format Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "responseCode": "={{$json.statusCode || 200}}",
+        "responseHeaders": {
+          "entries": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Execution-ID",
+              "value": "={{$execution.id}}"
+            },
+            {
+              "name": "X-Request-ID", 
+              "value": "={{$json.requestId}}"
+            }
+          ]
+        }
+      },
+      "id": "final-response",
+      "name": "✅ Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1200, 500]
+    }
+  ],
+  "connections": {
+    "🎯 API Entry Point": {
+      "main": [
+        [
+          {
+            "node": "🔐 Validate Auth & Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 Validate Auth & Format": {
+      "main": [
+        [
+          {
+            "node": "🔀 Route by Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Route by Action": {
+      "main": [
+        [
+          {
+            "node": "🚀 Execute Trading Engine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💼 Execute Portfolio Monitor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📱 Execute Notification System",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ Handle Unknown Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 Execute Trading Engine": {
+      "main": [
+        [
+          {
+            "node": "📊 Format Trading Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💼 Execute Portfolio Monitor": {
+      "main": [
+        [
+          {
+            "node": "📈 Format Portfolio Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 Execute Notification System": {
+      "main": [
+        [
+          {
+            "node": "🔔 Format Notification Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ Handle Unknown Action": {
+      "main": [
+        [
+          {
+            "node": "⚠️ Format Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Format Trading Response": {
+      "main": [
+        [
+          {
+            "node": "✅ Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 Format Portfolio Response": {
+      "main": [
+        [
+          {
+            "node": "✅ Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔔 Format Notification Response": {
+      "main": [
+        [
+          {
+            "node": "✅ Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ Format Error Response": {
+      "main": [
+        [
+          {
+            "node": "✅ Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow"
+  },
+  "staticData": {
+    "supportedActions": [
+      "execute_trade", "get_market_data", "manage_positions", "create_strategy",
+      "check_portfolio", "assess_risk", "get_performance", "monitor_positions", 
+      "send_notification", "create_alert", "send_report"
+    ],
+    "workflowMapping": {
+      "trading": ["execute_trade", "get_market_data", "manage_positions", "create_strategy"],
+      "portfolio": ["check_portfolio", "assess_risk", "get_performance", "monitor_positions"],
+      "notification": ["send_notification", "create_alert", "send_report"]
+    }
+  }
+}
+

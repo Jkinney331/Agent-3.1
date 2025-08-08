@@ -1,0 +1,466 @@
+{
+  "name": "🔗 ENHANCED API INTEGRATION WORKFLOW",
+  "description": "Production API gateway with intelligent routing, authentication, and comprehensive error handling",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "path": "api-integration",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "authentication": "none",
+        "options": {
+          "rawBody": true,
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "main-webhook-node",
+      "name": "🚪 Main API Gateway",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 400],
+      "webhookId": "api-integration-main-gateway"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Authentication & Request Validation\nconst headers = $json.headers || {};\nconst body = $json.body || {};\nconst query = $json.query || {};\nconst method = headers['x-http-method'] || 'POST';\nconst timestamp = new Date().toISOString();\n\n// Extract authentication\nconst authHeader = headers.Authorization || headers.authorization || headers['X-API-Key'] || '';\nconst expectedBearer = `Bearer ${process.env.API_INTEGRATION_BEARER_TOKEN || 'ai-trading-bot-secure-2025-integration'}`;\n\nconsole.log('🔐 API Gateway Request:', {\n  hasAuth: !!authHeader,\n  method,\n  bodyType: typeof body,\n  timestamp,\n  userAgent: headers['user-agent'] || headers['User-Agent'] || 'Unknown',\n  origin: headers.origin || headers.Origin || 'Unknown'\n});\n\n// Comprehensive validation\nconst validationResult = {\n  authValid: authHeader === expectedBearer,\n  hasBody: typeof body === 'object' && body !== null,\n  hasAction: body.action || body.type || body.workflow,\n  validMethod: ['POST', 'GET'].includes(method.toUpperCase())\n};\n\n// Security checks\nconst securityChecks = {\n  suspiciousUserAgent: (headers['user-agent'] || '').includes('bot') && !(headers['user-agent'] || '').includes('TradingBot'),\n  rateLimitExceeded: false, // Implement rate limiting logic\n  ipWhitelisted: true, // Implement IP whitelisting if needed\n  validTimestamp: Math.abs(Date.now() - (body.timestamp ? new Date(body.timestamp).getTime() : Date.now())) < 300000 // 5 min window\n};\n\n// Create request context\nconst requestContext = {\n  requestId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,\n  timestamp,\n  clientInfo: {\n    userAgent: headers['user-agent'] || headers['User-Agent'] || 'Unknown',\n    origin: headers.origin || headers.Origin || 'Unknown',\n    ip: headers['x-forwarded-for'] || headers['X-Forwarded-For'] || 'Unknown'\n  },\n  authentication: {\n    method: authHeader.startsWith('Bearer') ? 'Bearer Token' : 'Unknown',\n    valid: validationResult.authValid\n  },\n  validation: validationResult,\n  security: securityChecks\n};\n\n// Early validation failures\nif (!validationResult.authValid) {\n  return [{ \n    json: { \n      success: false, \n      error: 'Unauthorized - Invalid or missing authentication', \n      statusCode: 401,\n      requestId: requestContext.requestId,\n      timestamp\n    } \n  }];\n}\n\nif (!validationResult.hasBody) {\n  return [{ \n    json: { \n      success: false, \n      error: 'Bad Request - Invalid or missing JSON body', \n      statusCode: 400,\n      requestId: requestContext.requestId,\n      timestamp\n    } \n  }];\n}\n\nif (!validationResult.hasAction) {\n  return [{ \n    json: { \n      success: false, \n      error: 'Bad Request - Missing action, type, or workflow parameter', \n      statusCode: 400,\n      requestId: requestContext.requestId,\n      timestamp\n    } \n  }];\n}\n\n// Security warning checks\nif (Object.values(securityChecks).some(check => check === false)) {\n  console.log('⚠️ Security Warning:', {\n    requestId: requestContext.requestId,\n    failedChecks: Object.keys(securityChecks).filter(key => securityChecks[key] === false),\n    clientInfo: requestContext.clientInfo\n  });\n}\n\n// Determine routing based on request\nconst routingLogic = {\n  action: body.action || body.type || body.workflow,\n  targetWorkflow: null,\n  parameters: {},\n  priority: 'MEDIUM'\n};\n\n// Enhanced routing decision\nswitch (routingLogic.action.toUpperCase()) {\n  case 'TRADING':\n  case 'TRADE':\n  case 'AI_TRADING':\n  case 'MARKET_ANALYSIS':\n    routingLogic.targetWorkflow = 'enhanced-ai-trading-master';\n    routingLogic.priority = 'HIGH';\n    routingLogic.parameters = {\n      symbol: body.symbol || 'BTC',\n      capital: body.capital || process.env.TRADING_CAPITAL || '50000',\n      riskTolerance: body.riskTolerance || process.env.RISK_TOLERANCE || 'MEDIUM'\n    };\n    break;\n    \n  case 'PORTFOLIO':\n  case 'PERFORMANCE':\n  case 'RISK':\n  case 'MONITORING':\n    routingLogic.targetWorkflow = 'enhanced-portfolio-monitor';\n    routingLogic.priority = 'MEDIUM';\n    routingLogic.parameters = {\n      accountId: body.accountId || 'default',\n      includeHistory: body.includeHistory !== false\n    };\n    break;\n    \n  case 'NOTIFICATION':\n  case 'ALERT':\n  case 'NOTIFY':\n    routingLogic.targetWorkflow = 'enhanced-notification-system';\n    routingLogic.priority = body.priority || 'MEDIUM';\n    routingLogic.parameters = {\n      type: body.notificationType || 'MANUAL',\n      message: body.message || 'Manual notification',\n      urgent: body.urgent === true\n    };\n    break;\n    \n  default:\n    return [{ \n      json: { \n        success: false, \n        error: `Unsupported action: ${routingLogic.action}`, \n        statusCode: 400,\n        supportedActions: ['TRADING', 'PORTFOLIO', 'NOTIFICATION'],\n        requestId: requestContext.requestId,\n        timestamp\n      } \n    }];\n}\n\n// Prepare final request payload\nconst processedRequest = {\n  success: true,\n  routing: routingLogic,\n  context: requestContext,\n  payload: {\n    ...body,\n    ...routingLogic.parameters,\n    requestId: requestContext.requestId,\n    timestamp,\n    priority: routingLogic.priority\n  },\n  metadata: {\n    processedAt: timestamp,\n    version: '2.0.0',\n    source: 'n8n-api-gateway'\n  }\n};\n\nconsole.log('✅ Request Processed Successfully:', {\n  requestId: requestContext.requestId,\n  targetWorkflow: routingLogic.targetWorkflow,\n  action: routingLogic.action,\n  priority: routingLogic.priority\n});\n\nreturn [{ json: processedRequest }];"
+      },
+      "id": "enhanced-validate-process",
+      "name": "🔒 Enhanced Validate & Process",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "trading-workflow",
+              "leftValue": "={{ $json.routing.targetWorkflow }}",
+              "rightValue": "enhanced-ai-trading-master",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "trading-workflow-router",
+      "name": "🤖 Trading Workflow Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "portfolio-workflow",
+              "leftValue": "={{ $json.routing.targetWorkflow }}",
+              "rightValue": "enhanced-portfolio-monitor",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "portfolio-workflow-router",
+      "name": "💼 Portfolio Workflow Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "notification-workflow",
+              "leftValue": "={{ $json.routing.targetWorkflow }}",
+              "rightValue": "enhanced-notification-system",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "notification-workflow-router",
+      "name": "📱 Notification Workflow Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 600]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/enhanced-ai-trading-trigger",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"trigger\": \"API_REQUEST\",\n  \"data\": $json.payload,\n  \"context\": $json.context,\n  \"requestId\": $json.context.requestId,\n  \"priority\": $json.routing.priority,\n  \"timestamp\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Request-ID",
+              "value": "={{ $json.context.requestId }}"
+            },
+            {
+              "name": "X-Priority",
+              "value": "={{ $json.routing.priority }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 2
+          }
+        }
+      },
+      "id": "trigger-trading-workflow",
+      "name": "🚀 Trigger Trading Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [800, 100]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/enhanced-portfolio-trigger",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"trigger\": \"API_REQUEST\",\n  \"data\": $json.payload,\n  \"context\": $json.context,\n  \"requestId\": $json.context.requestId,\n  \"priority\": $json.routing.priority,\n  \"timestamp\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Request-ID",
+              "value": "={{ $json.context.requestId }}"
+            },
+            {
+              "name": "X-Priority",
+              "value": "={{ $json.routing.priority }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 2
+          }
+        }
+      },
+      "id": "trigger-portfolio-workflow",
+      "name": "📊 Trigger Portfolio Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/trading-notification",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"body\": {\n    \"type\": $json.payload.type || \"MANUAL\",\n    \"message\": $json.payload.message || \"Manual notification from API\",\n    \"priority\": $json.routing.priority,\n    \"requestId\": $json.context.requestId,\n    \"source\": \"API_INTEGRATION\",\n    \"timestamp\": new Date().toISOString()\n  }\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Request-ID",
+              "value": "={{ $json.context.requestId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 2
+          }
+        }
+      },
+      "id": "trigger-notification-workflow",
+      "name": "📢 Trigger Notification Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [800, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/api_requests",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"request_id\": $json.context?.requestId || 'unknown',\n  \"method\": \"POST\",\n  \"endpoint\": \"/api-integration\",\n  \"action\": $json.routing?.action || 'unknown',\n  \"target_workflow\": $json.routing?.targetWorkflow || 'unknown',\n  \"priority\": $json.routing?.priority || 'MEDIUM',\n  \"client_ip\": $json.context?.clientInfo?.ip || 'unknown',\n  \"user_agent\": $json.context?.clientInfo?.userAgent || 'unknown',\n  \"auth_valid\": $json.context?.authentication?.valid || false,\n  \"response_status\": $json.executed ? 'SUCCESS' : 'PENDING',\n  \"execution_time_ms\": Date.now() - new Date($json.context?.timestamp || new Date()).getTime(),\n  \"request_payload\": JSON.stringify($json.payload || {}),\n  \"response_data\": JSON.stringify($json.response || {}),\n  \"created_at\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "log-api-request",
+      "name": "📝 Log API Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Response Aggregator with Comprehensive Status\nconst responses = $input.all();\nconst timestamp = new Date().toISOString();\n\n// Find the main request data (should be first in the chain)\nconst mainRequest = responses.find(r => r.json.context?.requestId) || responses[0];\nconst requestId = mainRequest?.json?.context?.requestId || `fallback-${Date.now()}`;\n\n// Aggregate workflow execution results\nconst workflowResults = responses.filter(r => \n  r.json && (r.json.success !== undefined || r.json.executed !== undefined || r.json.status)\n);\n\n// Determine overall execution status\nconst executionStatus = {\n  totalRequests: workflowResults.length,\n  successfulExecutions: workflowResults.filter(r => \n    r.json.success === true || r.json.executed === true || r.json.status === 'success'\n  ).length,\n  failedExecutions: workflowResults.filter(r => \n    r.json.success === false || r.json.error || r.json.status === 'error'\n  ).length,\n  pendingExecutions: workflowResults.filter(r => \n    r.json.status === 'pending' || r.json.status === 'processing'\n  ).length\n};\n\n// Calculate execution metrics\nconst executionMetrics = {\n  successRate: executionStatus.totalRequests > 0 ? \n    (executionStatus.successfulExecutions / executionStatus.totalRequests * 100).toFixed(1) + '%' : '0%',\n  executionTime: mainRequest?.json?.context?.timestamp ? \n    Date.now() - new Date(mainRequest.json.context.timestamp).getTime() : 0,\n  workflowsTriggered: executionStatus.totalRequests,\n  overallStatus: executionStatus.failedExecutions > 0 ? 'PARTIAL_SUCCESS' :\n                 executionStatus.successfulExecutions > 0 ? 'SUCCESS' : 'PENDING'\n};\n\n// Extract detailed results\nconst detailedResults = workflowResults.map(result => ({\n  workflow: result.json.workflow || 'unknown',\n  status: result.json.success === true ? 'SUCCESS' : \n          result.json.success === false ? 'FAILED' : 'UNKNOWN',\n  data: result.json.data || result.json.result || null,\n  error: result.json.error || null,\n  executionId: result.json.executionId || null,\n  timestamp: result.json.timestamp || timestamp\n}));\n\n// Create comprehensive response\nconst aggregatedResponse = {\n  success: executionStatus.failedExecutions === 0 && executionStatus.successfulExecutions > 0,\n  requestId,\n  timestamp,\n  execution: {\n    status: executionMetrics.overallStatus,\n    metrics: executionMetrics,\n    summary: executionStatus,\n    details: detailedResults\n  },\n  routing: mainRequest?.json?.routing || {\n    action: 'unknown',\n    targetWorkflow: 'unknown',\n    priority: 'MEDIUM'\n  },\n  data: {\n    results: detailedResults,\n    aggregatedData: workflowResults.reduce((acc, result) => {\n      if (result.json.data) {\n        acc[result.json.workflow || 'unknown'] = result.json.data;\n      }\n      return acc;\n    }, {})\n  },\n  metadata: {\n    version: '2.0.0',\n    processedAt: timestamp,\n    totalExecutionTime: executionMetrics.executionTime + 'ms',\n    apiGateway: 'n8n-enhanced-integration'\n  }\n};\n\n// Add errors if any\nconst errors = workflowResults\n  .filter(r => r.json.error)\n  .map(r => ({\n    workflow: r.json.workflow || 'unknown',\n    error: r.json.error,\n    details: r.json.details || null\n  }));\n\nif (errors.length > 0) {\n  aggregatedResponse.errors = errors;\n}\n\n// Add warnings for partial success\nif (executionMetrics.overallStatus === 'PARTIAL_SUCCESS') {\n  aggregatedResponse.warnings = [\n    `${executionStatus.failedExecutions} out of ${executionStatus.totalRequests} workflows failed`,\n    'Some functionality may not be available',\n    'Check error details for specific workflow failures'\n  ];\n}\n\nconsole.log('🔗 API Integration Response:', {\n  requestId,\n  overallStatus: executionMetrics.overallStatus,\n  successRate: executionMetrics.successRate,\n  executionTime: executionMetrics.executionTime + 'ms',\n  workflowsTriggered: executionStatus.totalRequests\n});\n\nreturn [{ json: aggregatedResponse }];"
+      },
+      "id": "enhanced-response-aggregator",
+      "name": "📊 Enhanced Response Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "responseCode": "={{ $json.success ? 200 : ($json.errors && $json.errors.length > 0 ? 207 : 500) }}",
+        "responseHeaders": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "name": "X-Request-ID",
+            "value": "={{ $json.requestId }}"
+          },
+          {
+            "name": "X-Execution-Time",
+            "value": "={{ $json.metadata.totalExecutionTime }}"
+          },
+          {
+            "name": "X-API-Version",
+            "value": "2.0.0"
+          }
+        ]
+      },
+      "id": "respond-to-client",
+      "name": "📤 Respond to Client",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1400, 400]
+    }
+  ],
+  "connections": {
+    "🚪 Main API Gateway": {
+      "main": [
+        [
+          {
+            "node": "🔒 Enhanced Validate & Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔒 Enhanced Validate & Process": {
+      "main": [
+        [
+          {
+            "node": "🤖 Trading Workflow Router",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💼 Portfolio Workflow Router",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📱 Notification Workflow Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Trading Workflow Router": {
+      "main": [
+        [
+          {
+            "node": "🚀 Trigger Trading Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "💼 Portfolio Workflow Router": {
+      "main": [
+        [
+          {
+            "node": "📊 Trigger Portfolio Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📱 Notification Workflow Router": {
+      "main": [
+        [
+          {
+            "node": "📢 Trigger Notification Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "🚀 Trigger Trading Workflow": {
+      "main": [
+        [
+          {
+            "node": "📝 Log API Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Trigger Portfolio Workflow": {
+      "main": [
+        [
+          {
+            "node": "📝 Log API Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 Trigger Notification Workflow": {
+      "main": [
+        [
+          {
+            "node": "📝 Log API Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log API Request": {
+      "main": [
+        [
+          {
+            "node": "📊 Enhanced Response Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Enhanced Response Aggregator": {
+      "main": [
+        [
+          {
+            "node": "📤 Respond to Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "api-gateway-error-handler",
+    "timezone": "America/New_York"
+  },
+  "pinData": {},
+  "versionId": "2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "enhanced-api-integration-workflow",
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "production",
+      "name": "Production"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "api-gateway",
+      "name": "API Gateway"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "integration",
+      "name": "Integration"
+    }
+  ]
+}

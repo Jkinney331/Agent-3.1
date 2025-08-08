@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { n8nClient, N8NIntegrationClient } from '@/lib/api/n8n-integration-client';
 
-// Mock N8N API endpoints - replace with actual N8N instance URLs
+// Legacy N8N API endpoints - kept for backward compatibility
 const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://localhost:5678';
 const N8N_API_KEY = process.env.N8N_API_KEY || '';
 

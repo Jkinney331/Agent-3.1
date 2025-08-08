@@ -1,0 +1,404 @@
+{
+  "info": {
+    "name": "AI Crypto Trading Bot API",
+    "description": "Complete API collection for n8n workflow integration and AI-powered trading execution",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "ai-trading-bot-secure-2025-integration",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://your-domain.com",
+      "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "ai-trading-bot-secure-2025-integration",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "N8N Integration API",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"health_check\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/integration",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "integration"]
+            }
+          }
+        },
+        {
+          "name": "Execute Trade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"execute_trade\",\n  \"payload\": {\n    \"symbol\": \"BTCUSD\",\n    \"side\": \"buy\",\n    \"quantity\": 0.001,\n    \"orderType\": \"market\",\n    \"stopLoss\": 48000,\n    \"takeProfit\": 52000\n  },\n  \"metadata\": {\n    \"userId\": \"user_123\",\n    \"source\": \"postman-test\",\n    \"priority\": \"high\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/integration",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "integration"]
+            }
+          }
+        },
+        {
+          "name": "Get Market Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"get_market_data\",\n  \"payload\": {\n    \"symbols\": [\"BTCUSD\", \"ETHUSD\", \"ADAUSD\"],\n    \"timeframe\": \"1h\"\n  },\n  \"metadata\": {\n    \"source\": \"market-dashboard\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/integration",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "integration"]
+            }
+          }
+        },
+        {
+          "name": "Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"send_notification\",\n  \"payload\": {\n    \"type\": \"trade_execution\",\n    \"message\": \"Successfully executed BTC buy order at $50,000\",\n    \"channels\": [\"telegram\", \"email\"],\n    \"priority\": \"high\"\n  },\n  \"metadata\": {\n    \"source\": \"notification-service\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/integration",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "integration"]
+            }
+          }
+        },
+        {
+          "name": "Check Portfolio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"check_portfolio\",\n  \"payload\": {\n    \"timeframe\": \"1d\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/integration",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "integration"]
+            }
+          }
+        },
+        {
+          "name": "Get Workflow Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/n8n/integration?action=status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "integration"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "status"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "N8N Webhook API",
+      "item": [
+        {
+          "name": "Trading Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "n8n-workflow/1.0"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"TRADING\",\n  \"symbol\": \"BTC\",\n  \"capital\": 50000,\n  \"riskTolerance\": \"MEDIUM\",\n  \"executionId\": \"exec_n8n_001\",\n  \"workflowName\": \"AI-Trading-Strategy-v2\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/webhook",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "Portfolio Monitor Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "n8n-portfolio-monitor/1.0"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PORTFOLIO\",\n  \"accountId\": \"default\",\n  \"includeHistory\": true,\n  \"timeframe\": \"1d\",\n  \"requestSource\": \"portfolio-monitor-workflow\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/webhook",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "Notification Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "n8n-notification-system/1.0"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workflow\": \"NOTIFICATION\",\n  \"notificationType\": \"TRADE_ALERT\",\n  \"message\": \"BTC price reached $50,000 - Strategy triggered\",\n  \"priority\": \"HIGH\",\n  \"channels\": [\"telegram\", \"email\"],\n  \"executionContext\": {\n    \"triggerPrice\": 50000,\n    \"symbol\": \"BTC/USD\",\n    \"confidence\": 0.89\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/n8n/webhook",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "Webhook Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/n8n/webhook",
+              "host": ["{{base_url}}"],
+              "path": ["api", "n8n", "webhook"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Enhanced Trading Execution API",
+      "item": [
+        {
+          "name": "Execute AI Trade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"execute\",\n  \"symbol\": \"BTC\",\n  \"capital\": 1000,\n  \"riskLevel\": \"MEDIUM\",\n  \"strategy\": \"aiAdaptive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/trading/execute",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "execute"]
+            }
+          }
+        },
+        {
+          "name": "Execute Manual Trade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"execute\",\n  \"symbol\": \"TSLA\",\n  \"capital\": 5000,\n  \"side\": \"buy\",\n  \"orderType\": \"limit\",\n  \"riskLevel\": \"LOW\",\n  \"strategy\": \"momentum\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/trading/execute",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "execute"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Positions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/trading/execute?action=positions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "execute"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "positions"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Trading History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/trading/execute?action=history&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "execute"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "history"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Performance Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/trading/execute?action=stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "execute"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "stats"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Trading Configuration",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/trading/execute?action=config",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "execute"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "config"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Set timestamp for requests",
+          "pm.globals.set('timestamp', new Date().toISOString());"
+        ],
+        "type": "text/javascript"
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "// Basic response validation",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has JSON body', function () {",
+          "    pm.response.to.have.jsonBody();",
+          "});",
+          "",
+          "pm.test('Response contains success field', function () {",
+          "    pm.expect(pm.response.json()).to.have.property('success');",
+          "});",
+          "",
+          "// Log response for debugging",
+          "console.log('Response:', pm.response.json());"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}

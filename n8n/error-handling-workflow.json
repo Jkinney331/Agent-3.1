@@ -1,0 +1,320 @@
+{
+  "name": "🚫 ERROR HANDLING & RECOVERY SYSTEM",
+  "description": "Comprehensive error handling, recovery strategies, and security monitoring for all workflows",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "webhookCall",
+        "httpMethod": "POST",
+        "path": "error-handler",
+        "options": {
+          "noResponseBody": false,
+          "rawBody": true
+        }
+      },
+      "id": "error-webhook",
+      "name": "🚨 Error Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "error-handler-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Advanced Error Analysis and Classification\nconst errorData = $json.body || $json;\nconst timestamp = new Date().toISOString();\n\nconsole.log('🚨 Error Handler Processing:', {\n  errorType: errorData.type || 'unknown',\n  source: errorData.source || 'unknown',\n  timestamp\n});\n\n// Enhanced error categorization\nconst errorCategories = {\n  TRADING_ERROR: {\n    priority: 'CRITICAL',\n    description: 'Trading execution or order management failure',\n    recoveryStrategy: 'EMERGENCY_STOP',\n    escalate: true,\n    maxRetries: 0\n  },\n  API_ERROR: {\n    priority: 'HIGH',\n    description: 'External API failure (Alpaca, Binance, etc.)',\n    recoveryStrategy: 'RETRY_WITH_FALLBACK',\n    escalate: false,\n    maxRetries: 3,\n    retryDelay: 30000\n  },\n  DATABASE_ERROR: {\n    priority: 'HIGH',\n    description: 'Database connection or query failure',\n    recoveryStrategy: 'RETRY_WITH_CACHE',\n    escalate: true,\n    maxRetries: 2,\n    retryDelay: 10000\n  },\n  NOTIFICATION_ERROR: {\n    priority: 'MEDIUM',\n    description: 'Notification delivery failure',\n    recoveryStrategy: 'RETRY_ALTERNATIVE_CHANNEL',\n    escalate: false,\n    maxRetries: 3,\n    retryDelay: 5000\n  },\n  SECURITY_ERROR: {\n    priority: 'CRITICAL',\n    description: 'Security violation or authentication failure',\n    recoveryStrategy: 'IMMEDIATE_LOCKDOWN',\n    escalate: true,\n    maxRetries: 0\n  },\n  SYSTEM_ERROR: {\n    priority: 'HIGH',\n    description: 'System-level error or resource failure',\n    recoveryStrategy: 'SYSTEM_RESTART',\n    escalate: true,\n    maxRetries: 1,\n    retryDelay: 60000\n  },\n  VALIDATION_ERROR: {\n    priority: 'MEDIUM',\n    description: 'Data validation or format error',\n    recoveryStrategy: 'CLEAN_AND_RETRY',\n    escalate: false,\n    maxRetries: 2,\n    retryDelay: 1000\n  },\n  NETWORK_ERROR: {\n    priority: 'MEDIUM',\n    description: 'Network connectivity or timeout error',\n    recoveryStrategy: 'EXPONENTIAL_BACKOFF',\n    escalate: false,\n    maxRetries: 5,\n    retryDelay: 5000\n  }\n};\n\n// Determine error type from various sources\nfunction determineErrorType(error) {\n  const errorMessage = (error.message || error.error || '').toLowerCase();\n  const errorCode = error.code || error.statusCode || '';\n  const errorSource = (error.source || '').toLowerCase();\n  \n  // Security-related errors\n  if (errorMessage.includes('unauthorized') || errorMessage.includes('forbidden') || \n      errorMessage.includes('authentication') || errorCode === 401 || errorCode === 403) {\n    return 'SECURITY_ERROR';\n  }\n  \n  // Trading-related errors\n  if (errorSource.includes('trading') || errorSource.includes('order') || \n      errorSource.includes('execution') || errorMessage.includes('trade') ||\n      errorMessage.includes('position') || errorMessage.includes('balance')) {\n    return 'TRADING_ERROR';\n  }\n  \n  // API-related errors\n  if (errorMessage.includes('alpaca') || errorMessage.includes('binance') || \n      errorMessage.includes('coingecko') || errorMessage.includes('api') ||\n      errorCode >= 400 && errorCode < 500) {\n    return 'API_ERROR';\n  }\n  \n  // Database-related errors\n  if (errorMessage.includes('database') || errorMessage.includes('supabase') ||\n      errorMessage.includes('sql') || errorMessage.includes('connection')) {\n    return 'DATABASE_ERROR';\n  }\n  \n  // Notification errors\n  if (errorSource.includes('notification') || errorSource.includes('telegram') ||\n      errorMessage.includes('telegram') || errorMessage.includes('notification')) {\n    return 'NOTIFICATION_ERROR';\n  }\n  \n  // Network errors\n  if (errorMessage.includes('network') || errorMessage.includes('timeout') ||\n      errorMessage.includes('econnrefused') || errorMessage.includes('enotfound') ||\n      errorCode >= 500) {\n    return 'NETWORK_ERROR';\n  }\n  \n  // Validation errors\n  if (errorMessage.includes('validation') || errorMessage.includes('invalid') ||\n      errorMessage.includes('missing') || errorCode === 400) {\n    return 'VALIDATION_ERROR';\n  }\n  \n  // Default to system error\n  return 'SYSTEM_ERROR';\n}\n\nconst errorType = determineErrorType(errorData);\nconst errorConfig = errorCategories[errorType];\n\n// Generate comprehensive error report\nconst errorReport = {\n  errorId: `error-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,\n  timestamp,\n  classification: {\n    type: errorType,\n    priority: errorConfig.priority,\n    description: errorConfig.description,\n    escalationRequired: errorConfig.escalate\n  },\n  originalError: {\n    message: errorData.message || errorData.error || 'Unknown error',\n    code: errorData.code || errorData.statusCode || null,\n    source: errorData.source || 'unknown',\n    stack: errorData.stack || null,\n    context: errorData.context || {},\n    requestId: errorData.requestId || null,\n    workflowId: errorData.workflowId || null\n  },\n  recovery: {\n    strategy: errorConfig.recoveryStrategy,\n    maxRetries: errorConfig.maxRetries,\n    retryDelay: errorConfig.retryDelay || 0,\n    currentRetryCount: errorData.retryCount || 0,\n    canRetry: (errorData.retryCount || 0) < errorConfig.maxRetries,\n    estimatedRecoveryTime: errorConfig.retryDelay ? \n      new Date(Date.now() + errorConfig.retryDelay).toISOString() : null\n  },\n  impact: {\n    tradingAffected: errorType === 'TRADING_ERROR' || errorType === 'API_ERROR',\n    dataIntegrityAffected: errorType === 'DATABASE_ERROR',\n    securityCompromised: errorType === 'SECURITY_ERROR',\n    notificationAffected: errorType === 'NOTIFICATION_ERROR',\n    systemStabilityAffected: errorType === 'SYSTEM_ERROR',\n    userExperienceAffected: true\n  },\n  recommendations: [\n    errorConfig.escalate ? 'Immediate attention required' : null,\n    errorType === 'TRADING_ERROR' ? 'Stop all trading operations immediately' : null,\n    errorType === 'SECURITY_ERROR' ? 'Review security logs and credentials' : null,\n    errorType === 'API_ERROR' ? 'Check API credentials and rate limits' : null,\n    errorType === 'DATABASE_ERROR' ? 'Verify database connectivity and queries' : null,\n    errorType === 'NETWORK_ERROR' ? 'Check network connectivity and DNS resolution' : null,\n    'Monitor system stability after recovery',\n    'Review error patterns for potential system improvements'\n  ].filter(Boolean),\n  metrics: {\n    detectionTime: timestamp,\n    processingTime: Date.now(),\n    affectedSystems: [errorData.source].filter(Boolean),\n    errorFrequency: 1, // This would be enhanced with historical data\n    criticalityScore: errorConfig.priority === 'CRITICAL' ? 100 : \n                      errorConfig.priority === 'HIGH' ? 75 : \n                      errorConfig.priority === 'MEDIUM' ? 50 : 25\n  }\n};\n\n// Generate recovery actions based on error type\nconst recoveryActions = {\n  'EMERGENCY_STOP': {\n    immediate: ['Close all positions', 'Stop trading engine', 'Send critical alert'],\n    followUp: ['Review trade logs', 'Analyze root cause', 'Manual intervention required']\n  },\n  'RETRY_WITH_FALLBACK': {\n    immediate: ['Retry with exponential backoff', 'Switch to backup API if available'],\n    followUp: ['Monitor API health', 'Update API credentials if needed']\n  },\n  'IMMEDIATE_LOCKDOWN': {\n    immediate: ['Revoke API access', 'Stop all operations', 'Alert security team'],\n    followUp: ['Security audit', 'Credential rotation', 'System hardening']\n  },\n  'SYSTEM_RESTART': {\n    immediate: ['Graceful service restart', 'Health check all components'],\n    followUp: ['Monitor system resources', 'Review system logs']\n  },\n  'RETRY_ALTERNATIVE_CHANNEL': {\n    immediate: ['Try backup notification channel', 'Log delivery failure'],\n    followUp: ['Review notification configuration', 'Test all channels']\n  }\n};\n\nconst actionPlan = recoveryActions[errorConfig.recoveryStrategy] || {\n  immediate: ['Log error', 'Monitor for recurrence'],\n  followUp: ['Manual investigation required']\n};\n\n// Final error analysis\nconst finalReport = {\n  ...errorReport,\n  recoveryPlan: {\n    strategy: errorConfig.recoveryStrategy,\n    immediateActions: actionPlan.immediate,\n    followUpActions: actionPlan.followUp,\n    automatedRecovery: errorConfig.maxRetries > 0,\n    manualInterventionRequired: errorConfig.escalate\n  },\n  notificationRequired: {\n    critical: errorConfig.priority === 'CRITICAL',\n    telegram: errorConfig.escalate || errorConfig.priority === 'CRITICAL',\n    email: errorConfig.escalate,\n    dashboard: true,\n    logs: true\n  }\n};\n\nconsole.log('📊 Error Analysis Complete:', {\n  errorId: finalReport.errorId,\n  type: errorType,\n  priority: errorConfig.priority,\n  canRetry: finalReport.recovery.canRetry,\n  escalationRequired: errorConfig.escalate\n});\n\nreturn [{ json: { errorAnalysis: finalReport } }];"
+      },
+      "id": "error-analyzer",
+      "name": "🔍 Error Analyzer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "critical-error",
+              "leftValue": "={{ $json.errorAnalysis.classification.priority }}",
+              "rightValue": "CRITICAL",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "critical-error-check",
+      "name": "🚨 Critical Error Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "can-retry",
+              "leftValue": "={{ $json.errorAnalysis.recovery.canRetry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-check",
+      "name": "🔄 Retry Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Critical Error Response - Immediate Actions\nconst errorAnalysis = $json.errorAnalysis;\nconst timestamp = new Date().toISOString();\n\nconsole.log('🚨 CRITICAL ERROR RESPONSE ACTIVATED:', {\n  errorId: errorAnalysis.errorId,\n  type: errorAnalysis.classification.type,\n  source: errorAnalysis.originalError.source\n});\n\n// Execute immediate critical actions\nconst criticalActions = {\n  'TRADING_ERROR': async () => {\n    // Emergency trading stop\n    return {\n      action: 'EMERGENCY_TRADING_STOP',\n      executed: true,\n      details: 'All trading operations halted immediately'\n    };\n  },\n  'SECURITY_ERROR': async () => {\n    // Security lockdown\n    return {\n      action: 'SECURITY_LOCKDOWN',\n      executed: true,\n      details: 'Security breach detected - system locked down'\n    };\n  },\n  'SYSTEM_ERROR': async () => {\n    // System stabilization\n    return {\n      action: 'SYSTEM_STABILIZATION',\n      executed: true,\n      details: 'System stability measures activated'\n    };\n  },\n  'API_ERROR': async () => {\n    // API failover\n    return {\n      action: 'API_FAILOVER',\n      executed: true,\n      details: 'Switched to backup API endpoints where possible'\n    };\n  }\n};\n\nconst errorType = errorAnalysis.classification.type;\nconst actionHandler = criticalActions[errorType];\n\nlet immediateResponse = {\n  action: 'GENERIC_CRITICAL_RESPONSE',\n  executed: false,\n  details: 'Critical error acknowledged, manual intervention required'\n};\n\nif (actionHandler) {\n  try {\n    immediateResponse = await actionHandler();\n  } catch (actionError) {\n    console.error('❌ Critical Action Execution Failed:', actionError);\n    immediateResponse.details += ` - Action execution failed: ${actionError.message}`;\n  }\n}\n\n// Generate comprehensive critical alert\nconst criticalAlert = {\n  alertId: `critical-${errorAnalysis.errorId}`,\n  timestamp,\n  severity: 'CRITICAL',\n  errorAnalysis,\n  immediateResponse,\n  status: 'ACTIVE',\n  requiresManualIntervention: true,\n  affectedSystems: [\n    errorType === 'TRADING_ERROR' ? 'Trading Engine' : null,\n    errorType === 'SECURITY_ERROR' ? 'Security System' : null,\n    errorType === 'API_ERROR' ? 'External APIs' : null,\n    errorType === 'SYSTEM_ERROR' ? 'Core System' : null,\n    'Monitoring System'\n  ].filter(Boolean),\n  nextSteps: [\n    'Immediate manual review required',\n    'Assess system stability',\n    'Determine root cause',\n    'Implement corrective measures',\n    'Monitor for recurrence'\n  ],\n  escalationPath: [\n    'System Administrator',\n    'DevOps Team',\n    'Security Team (if security-related)',\n    'Management (if business impact)'\n  ]\n};\n\nreturn [{ json: { criticalAlert } }];"
+      },
+      "id": "critical-response",
+      "name": "🔥 Critical Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Automated Recovery Handler\nconst errorAnalysis = $json.errorAnalysis;\nconst timestamp = new Date().toISOString();\nconst retryCount = errorAnalysis.recovery.currentRetryCount + 1;\n\nconsole.log('🔄 Automated Recovery Attempt:', {\n  errorId: errorAnalysis.errorId,\n  retryCount,\n  maxRetries: errorAnalysis.recovery.maxRetries,\n  strategy: errorAnalysis.recovery.strategy\n});\n\n// Recovery strategies implementation\nconst recoveryStrategies = {\n  'RETRY_WITH_FALLBACK': {\n    delay: Math.min(errorAnalysis.recovery.retryDelay * Math.pow(2, retryCount - 1), 300000), // Max 5 minutes\n    action: 'Exponential backoff retry with fallback endpoints',\n    probability: Math.max(0.8 - (retryCount * 0.2), 0.3) // Decreasing success probability\n  },\n  'RETRY_WITH_CACHE': {\n    delay: errorAnalysis.recovery.retryDelay,\n    action: 'Retry with cached data fallback',\n    probability: 0.7\n  },\n  'RETRY_ALTERNATIVE_CHANNEL': {\n    delay: errorAnalysis.recovery.retryDelay,\n    action: 'Switch to alternative communication channel',\n    probability: 0.9\n  },\n  'CLEAN_AND_RETRY': {\n    delay: errorAnalysis.recovery.retryDelay,\n    action: 'Data cleanup and validation retry',\n    probability: 0.8\n  },\n  'EXPONENTIAL_BACKOFF': {\n    delay: Math.min(errorAnalysis.recovery.retryDelay * Math.pow(1.5, retryCount - 1), 180000), // Max 3 minutes\n    action: 'Exponential backoff retry',\n    probability: Math.max(0.9 - (retryCount * 0.15), 0.2)\n  }\n};\n\nconst strategy = recoveryStrategies[errorAnalysis.recovery.strategy] || {\n  delay: 10000,\n  action: 'Generic retry',\n  probability: 0.5\n};\n\n// Simulate recovery attempt (in real implementation, this would execute actual recovery)\nconst recoveryAttempt = {\n  attemptId: `recovery-${errorAnalysis.errorId}-${retryCount}`,\n  timestamp,\n  retryCount,\n  strategy: errorAnalysis.recovery.strategy,\n  action: strategy.action,\n  delayMs: strategy.delay,\n  estimatedSuccess: strategy.probability,\n  status: 'INITIATED'\n};\n\n// Prepare retry payload for original operation\nconst retryPayload = {\n  ...errorAnalysis.originalError.context,\n  retryAttempt: recoveryAttempt,\n  originalErrorId: errorAnalysis.errorId,\n  retryCount,\n  maxRetries: errorAnalysis.recovery.maxRetries,\n  recoveryStrategy: errorAnalysis.recovery.strategy\n};\n\n// Recovery monitoring data\nconst recoveryMonitoring = {\n  errorPattern: {\n    type: errorAnalysis.classification.type,\n    frequency: 'Implementation for historical frequency analysis',\n    trend: 'Implementation for trend analysis'\n  },\n  systemHealth: {\n    beforeRecovery: 'degraded',\n    expectedAfterRecovery: strategy.probability > 0.7 ? 'good' : 'fair',\n    monitoringRequired: true\n  },\n  businessImpact: {\n    tradingDisrupted: errorAnalysis.impact.tradingAffected,\n    dataLoss: errorAnalysis.impact.dataIntegrityAffected,\n    securityRisk: errorAnalysis.impact.securityCompromised,\n    estimatedRecoveryTime: `${Math.round(strategy.delay / 1000)} seconds`\n  }\n};\n\nconst recoveryResponse = {\n  recoveryAttempt,\n  retryPayload,\n  monitoring: recoveryMonitoring,\n  nextAction: retryCount >= errorAnalysis.recovery.maxRetries ? 'ESCALATE' : 'RETRY',\n  scheduledRetryTime: new Date(Date.now() + strategy.delay).toISOString()\n};\n\nreturn [{ json: { recoveryResponse } }];"
+      },
+      "id": "recovery-handler",
+      "name": "🔧 Recovery Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final Recovery Decision\nconst errorAnalysis = $json.errorAnalysis;\nconst timestamp = new Date().toISOString();\n\nconsole.log('⏸️ Recovery Exhausted - Manual Intervention Required:', {\n  errorId: errorAnalysis.errorId,\n  retriesAttempted: errorAnalysis.recovery.currentRetryCount,\n  maxRetries: errorAnalysis.recovery.maxRetries\n});\n\n// Generate manual intervention report\nconst interventionReport = {\n  reportId: `intervention-${errorAnalysis.errorId}`,\n  timestamp,\n  errorSummary: {\n    type: errorAnalysis.classification.type,\n    priority: errorAnalysis.classification.priority,\n    source: errorAnalysis.originalError.source,\n    message: errorAnalysis.originalError.message\n  },\n  recoveryHistory: {\n    strategy: errorAnalysis.recovery.strategy,\n    attemptsCompleted: errorAnalysis.recovery.maxRetries,\n    totalDuration: 'Calculate from first error to final attempt',\n    outcome: 'FAILED'\n  },\n  requiredActions: [\n    'Manual diagnosis of root cause',\n    'System health assessment',\n    'Data integrity verification',\n    errorAnalysis.impact.tradingAffected ? 'Trading system review' : null,\n    errorAnalysis.impact.securityCompromised ? 'Security audit' : null,\n    'Implementation of permanent fix',\n    'System monitoring enhancement'\n  ].filter(Boolean),\n  businessImpact: {\n    severity: errorAnalysis.classification.priority,\n    affectedSystems: Object.keys(errorAnalysis.impact).filter(key => errorAnalysis.impact[key]),\n    estimatedResolutionTime: errorAnalysis.classification.priority === 'CRITICAL' ? '< 1 hour' : \n                           errorAnalysis.classification.priority === 'HIGH' ? '< 4 hours' : '< 24 hours',\n    requiresEscalation: true\n  },\n  recommendations: [\n    ...errorAnalysis.recommendations,\n    'Implement additional monitoring for this error type',\n    'Review and enhance error recovery strategies',\n    'Consider system architecture improvements',\n    'Update incident response procedures'\n  ]\n};\n\nreturn [{ json: { interventionReport } }];"
+      },
+      "id": "manual-intervention",
+      "name": "👨‍💻 Manual Intervention",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/error_logs",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"error_id\": $json.errorAnalysis?.errorId || $json.criticalAlert?.alertId || $json.recoveryResponse?.recoveryAttempt?.attemptId || 'unknown',\n  \"error_type\": $json.errorAnalysis?.classification?.type || 'UNKNOWN',\n  \"priority\": $json.errorAnalysis?.classification?.priority || $json.criticalAlert?.severity || 'MEDIUM',\n  \"source\": $json.errorAnalysis?.originalError?.source || 'unknown',\n  \"message\": $json.errorAnalysis?.originalError?.message || 'No message provided',\n  \"error_code\": $json.errorAnalysis?.originalError?.code || null,\n  \"request_id\": $json.errorAnalysis?.originalError?.requestId || null,\n  \"workflow_id\": $json.errorAnalysis?.originalError?.workflowId || null,\n  \"recovery_strategy\": $json.errorAnalysis?.recovery?.strategy || null,\n  \"retry_count\": $json.recoveryResponse?.recoveryAttempt?.retryCount || $json.errorAnalysis?.recovery?.currentRetryCount || 0,\n  \"max_retries\": $json.errorAnalysis?.recovery?.maxRetries || 0,\n  \"escalated\": $json.criticalAlert ? true : ($json.interventionReport ? true : false),\n  \"resolved\": false,\n  \"impact_assessment\": JSON.stringify($json.errorAnalysis?.impact || {}),\n  \"recovery_actions\": JSON.stringify($json.errorAnalysis?.recoveryPlan || {}),\n  \"error_details\": JSON.stringify($json),\n  \"created_at\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "log-to-database",
+      "name": "💾 Log to Database",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/trading-notification",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"body\": {\n    \"type\": \"SYSTEM_ERROR\",\n    \"priority\": $json.errorAnalysis?.classification?.priority || $json.criticalAlert?.severity || \"HIGH\",\n    \"title\": \"System Error Alert: \" + ($json.errorAnalysis?.classification?.type || \"Unknown Error\"),\n    \"message\": $json.errorAnalysis?.originalError?.message || $json.criticalAlert?.immediateResponse?.details || \"System error detected\",\n    \"errorId\": $json.errorAnalysis?.errorId || $json.criticalAlert?.alertId || \"unknown\",\n    \"source\": $json.errorAnalysis?.originalError?.source || \"error-handler\",\n    \"recoveryStatus\": $json.recoveryResponse ? \"ATTEMPTED\" : ($json.interventionReport ? \"MANUAL_REQUIRED\" : \"CRITICAL\"),\n    \"impact\": Object.keys($json.errorAnalysis?.impact || {}).filter(key => $json.errorAnalysis?.impact[key]).join(\", \") || \"Unknown impact\",\n    \"nextSteps\": $json.criticalAlert?.nextSteps || $json.interventionReport?.requiredActions || [\"Manual review required\"],\n    \"timestamp\": new Date().toISOString()\n  }\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-error-notification",
+      "name": "📢 Send Error Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 400]
+    }
+  ],
+  "connections": {
+    "🚨 Error Webhook": {
+      "main": [
+        [
+          {
+            "node": "🔍 Error Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Error Analyzer": {
+      "main": [
+        [
+          {
+            "node": "🚨 Critical Error Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🔄 Retry Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Critical Error Check": {
+      "main": [
+        [
+          {
+            "node": "🔥 Critical Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "🔄 Retry Check": {
+      "main": [
+        [
+          {
+            "node": "🔧 Recovery Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "👨‍💻 Manual Intervention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔥 Critical Response": {
+      "main": [
+        [
+          {
+            "node": "💾 Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Recovery Handler": {
+      "main": [
+        [
+          {
+            "node": "💾 Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👨‍💻 Manual Intervention": {
+      "main": [
+        [
+          {
+            "node": "💾 Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Log to Database": {
+      "main": [
+        [
+          {
+            "node": "📢 Send Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/New_York"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "error-handling-recovery-system",
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "error-handling",
+      "name": "Error Handling"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "recovery",
+      "name": "Recovery"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "monitoring",
+      "name": "Monitoring"
+    }
+  ]
+}

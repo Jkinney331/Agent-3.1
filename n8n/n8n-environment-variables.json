@@ -1,0 +1,64 @@
+{
+  "environmentVariables": {
+    "apiCredentials": {
+      "ALPACA_API_KEY": "PK6V8YP89R7JPD2O5BA4",
+      "ALPACA_SECRET_KEY": "XfjX2P0pvowkkQP0fkkwbhMJBBcDnMorBW5e73DZ",
+      "ALPACA_BASE_URL": "https://paper-api.alpaca.markets/v2",
+      "ALPACA_PAPER_TRADING": "true",
+      
+      "BINANCE_API_KEY": "428pEV4wB7JeFNUS8w5v0QBw7ed12L7A7pCpUwkSSsfnRtPWvJr1lgrFeoqpCpLB",
+      "BINANCE_SECRET_KEY": "1okFLhLHRoqY7NEbzvITSJOautdcyXKyiwWCxgNVFMtsmNlbjQtzlLxwwrkmZHiU",
+      "BINANCE_BASE_URL": "https://testnet.binance.vision/api/v3",
+      "BINANCE_TESTNET": "true",
+      
+      "COINGECKO_API_KEY": "CG-aQhKqxLWkcvpJdBi5gHKfQtB",
+      "COINGECKO_BASE_URL": "https://api.coingecko.com/api/v3",
+      
+      "ALPHA_VANTAGE_API_KEY": "8PQA774S43BSMFME",
+      "ALPHA_VANTAGE_BASE_URL": "https://www.alphavantage.co/query",
+      
+      "NEWS_API_KEY": "465fadae01e44557ad45ca934fad0f4e",
+      "FINNHUB_API_KEY": "d1vff7hr01qqgeel8ba0d1vff7hr01qqgeel8bag",
+      "COINDESK_API_KEY": "69ef02647a9b613d010c9b092443451b841b46ce1514a73e96b57574e2d3cc38",
+      
+      "SUPABASE_URL": "https://sjtulkkhxojiitpjhgrt.supabase.co",
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqdHVsa2toeG9qaWl0cGpoZ3J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MDgxOTgsImV4cCI6MjA2OTQ4NDE5OH0.CF4sgggDBKlTODChfy2nUBZQzLewT387LM5lUOE6A4Q",
+      
+      "TELEGRAM_BOT_TOKEN": "7730550123:AAEKTBWefQD5vMIN96tqXAqFxxMm0xc0x5g",
+      
+      "API_INTEGRATION_BEARER_TOKEN": "ai-trading-bot-secure-2025-integration"
+    },
+    "applicationConfig": {
+      "APP_BASE_URL": "http://localhost:3000",
+      "N8N_WEBHOOK_URL": "http://localhost:5678",
+      "TRADING_CAPITAL": "50000",
+      "MAX_POSITION_SIZE": "0.1",
+      "RISK_TOLERANCE": "MEDIUM",
+      "ENABLE_PAPER_TRADING": "true",
+      "ENABLE_LIVE_TRADING": "false"
+    },
+    "securityConfig": {
+      "WEBHOOK_AUTHENTICATION": "bearer",
+      "API_RATE_LIMIT": "100",
+      "MAX_RETRIES": "3",
+      "TIMEOUT_MS": "30000",
+      "ENABLE_AUDIT_LOGGING": "true"
+    }
+  },
+  "instructions": {
+    "setup": [
+      "1. In n8n, go to Settings → Variables",
+      "2. Add each variable from 'apiCredentials' section individually",
+      "3. Mark sensitive variables (API keys, secrets) as 'Secure'",
+      "4. Update all workflows to use these variables instead of hardcoded values",
+      "5. Test each API connection before activating workflows"
+    ],
+    "usage": "Use variables in workflows with: {{ $vars.VARIABLE_NAME }}",
+    "security": [
+      "Never hardcode API keys in workflow JSON",
+      "Always mark API keys as 'Secure' in n8n variables",
+      "Rotate API keys regularly",
+      "Monitor API usage and rate limits"
+    ]
+  }
+}

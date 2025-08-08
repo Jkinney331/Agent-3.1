@@ -1,5 +1,6 @@
 import { tradingDB, TradingAccount, TradingOrder, TradingPosition } from '@/lib/database/supabase-client'
 import { adaptiveStrategyManager, StrategySignal } from './adaptive-strategy-manager'
+import { alpacaClient } from './exchanges/alpaca-client'
 
 export interface PaperTradingConfig {
   enabled: boolean
@@ -62,7 +63,15 @@ export class EnhancedPaperTradingEngine {
 
   async initialize(userId: string): Promise<void> {
     try {
-      // Get or create trading account
+      // Check database connection status
+      const dbStatus = tradingDB.getStatus()
+      console.log(`📊 Database Status: ${dbStatus.storageMode} mode`)
+      
+      if (dbStatus.storageMode === 'in-memory') {
+        console.log('📝 Using in-memory storage for this session - data will not persist')
+      }
+
+      // Get or create trading account with fallback handling
       let account = await tradingDB.getAccount(userId)
       
       if (!account) {
@@ -74,13 +83,49 @@ export class EnhancedPaperTradingEngine {
       this.isInitialized = true
 
       console.log(`📊 Paper Trading Account Status:`)
+      console.log(`   Storage Mode: ${dbStatus.storageMode}`)
+      console.log(`   Account ID: ${account.id}`)
       console.log(`   Balance: $${account.balance.toLocaleString()}`)
       console.log(`   Total Equity: $${account.total_equity.toLocaleString()}`)
       console.log(`   Buying Power: $${account.buying_power.toLocaleString()}`)
 
+      // Try to sync with Alpaca on initialization only if account was successfully loaded
+      if (this.account) {
+        try {
+          await this.syncWithAlpaca()
+        } catch (error) {
+          console.log('⚠️ Could not sync with Alpaca on initialization (API may be unavailable)')
+        }
+      }
+
+      // Log initialization success
+      console.log(`✅ Paper trading engine initialized successfully for user: ${userId}`)
+
     } catch (error) {
       console.error('❌ Failed to initialize paper trading engine:', error)
-      throw error
+      
+      // Try to create a fallback account in case of complete database failure
+      if (!this.account) {
+        console.log('🔄 Attempting to create fallback in-memory account...')
+        try {
+          this.account = {
+            id: `fallback-${Date.now()}`,
+            user_id: userId,
+            account_type: 'paper',
+            balance: this.config.initialBalance,
+            initial_balance: this.config.initialBalance,
+            total_equity: this.config.initialBalance,
+            buying_power: this.config.initialBalance,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          this.isInitialized = true
+          console.log('✅ Fallback account created - limited functionality available')
+        } catch (fallbackError) {
+          console.error('❌ Failed to create fallback account:', fallbackError)
+          throw new Error(`Failed to initialize paper trading engine: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      }
     }
   }
 
@@ -95,20 +140,26 @@ export class EnhancedPaperTradingEngine {
     confidence: number
   }): Promise<TradeExecutionResult> {
     if (!this.isInitialized || !this.account) {
-      throw new Error('Paper trading engine not initialized')
+      return {
+        success: false,
+        message: 'Paper trading engine not initialized'
+      }
     }
 
     try {
+      console.log(`🔄 Executing ${order.side.toUpperCase()} order for ${order.symbol} (${order.quantity} units)`)
+      
       // Validate order
       const validation = await this.validateOrder(order)
       if (!validation.valid) {
+        console.log(`❌ Order validation failed: ${validation.reason}`)
         return {
           success: false,
           message: validation.reason || 'Order validation failed'
         }
       }
 
-      // Get current market price (mock for now)
+      // Get current market price from Alpaca or fallback to mock
       const marketPrice = await this.getCurrentPrice(order.symbol)
       const executionPrice = order.orderType === 'limit' && order.price ? order.price : marketPrice
       
@@ -116,34 +167,80 @@ export class EnhancedPaperTradingEngine {
       const notionalValue = order.quantity * executionPrice
       const estimatedFees = notionalValue * 0.001
 
-      // Create order in database
-      const dbOrder = await tradingDB.createOrder({
-        account_id: this.account.id,
-        symbol: order.symbol,
-        side: order.side === "buy" ? "long" : "short",
-        order_type: order.orderType || 'market',
-        quantity: order.quantity,
-        price: order.price || executionPrice,  // Use execution price if order price is not provided
-        status: 'pending',
-        strategy_used: order.strategy,
-        reasoning: order.reasoning,  // Using reasoning to match current DB schema
-        confidence_score: order.confidence
-      })
+      // Create order in database with error handling
+      let dbOrder
+      try {
+        dbOrder = await tradingDB.createOrder({
+          account_id: this.account.id,
+          symbol: order.symbol,
+          side: order.side,
+          order_type: order.orderType || 'market',
+          quantity: order.quantity,
+          price: order.price || executionPrice,
+          status: 'pending',
+          strategy_used: order.strategy,
+          reasoning: order.reasoning,
+          confidence_score: order.confidence
+        })
+        console.log(`📝 Order created with ID: ${dbOrder.id}`)
+      } catch (dbError) {
+        console.log(`⚠️ Failed to create order in database: ${dbError}, continuing with execution...`)
+        // Create a fallback order object for execution
+        dbOrder = {
+          id: `temp-${Date.now()}`,
+          account_id: this.account.id,
+          symbol: order.symbol,
+          side: order.side,
+          order_type: order.orderType || 'market',
+          quantity: order.quantity,
+          price: order.price || executionPrice,
+          status: 'pending',
+          strategy_used: order.strategy,
+          reasoning: order.reasoning,
+          confidence_score: order.confidence,
+          created_at: new Date().toISOString()
+        } as TradingOrder
+      }
 
-      // Execute the trade
-      const executionResult = await this.simulateExecution(dbOrder, executionPrice, estimatedFees)
+      // Try to execute through Alpaca for US equities, otherwise simulate
+      let executionResult
+      if (this.isUSEquity(order.symbol)) {
+        executionResult = await this.executeRealOrder(order, executionPrice, estimatedFees, dbOrder.id)
+      } else {
+        executionResult = await this.simulateExecution(dbOrder, executionPrice, estimatedFees)
+      }
 
       if (executionResult.success) {
-        // Update order status
-        await tradingDB.updateOrderStatus(dbOrder.id, 'filled', new Date().toISOString())
+        // Update order status with error handling
+        try {
+          await tradingDB.updateOrderStatus(dbOrder.id, 'filled', new Date().toISOString())
+        } catch (error) {
+          console.log(`⚠️ Failed to update order status in database: ${error}`)
+        }
 
-        // Update or create position
-        await this.updatePosition(order, executionPrice, estimatedFees)
+        // Update or create position with error handling
+        try {
+          await this.updatePosition(order, executionPrice, estimatedFees)
+        } catch (error) {
+          console.log(`⚠️ Failed to update position in database: ${error}`)
+          // Update local account balance at minimum
+          this.updateLocalAccountBalance(order, executionPrice, estimatedFees)
+        }
 
-        // Update account balance
-        await this.updateAccountBalance(order, executionPrice, estimatedFees)
+        // Update account balance with error handling
+        try {
+          await this.updateAccountBalance(order, executionPrice, estimatedFees)
+        } catch (error) {
+          console.log(`⚠️ Failed to update account balance in database: ${error}`)
+          // Update local account as fallback
+          this.updateLocalAccountBalance(order, executionPrice, estimatedFees)
+        }
       } else {
-        await tradingDB.updateOrderStatus(dbOrder.id, 'rejected')
+        try {
+          await tradingDB.updateOrderStatus(dbOrder.id, 'rejected')
+        } catch (error) {
+          console.log(`⚠️ Failed to update rejected order status: ${error}`)
+        }
       }
 
       return {
@@ -162,6 +259,30 @@ export class EnhancedPaperTradingEngine {
         message: `Order execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       }
     }
+  }
+
+  /**
+   * Update local account balance when database operations fail
+   */
+  private updateLocalAccountBalance(order: any, executionPrice: number, fees: number): void {
+    if (!this.account) return
+
+    const notionalValue = order.quantity * executionPrice
+    const totalCost = notionalValue + fees
+
+    if (order.side === 'buy') {
+      this.account.balance -= totalCost
+      this.account.buying_power -= totalCost
+    } else {
+      this.account.balance += notionalValue - fees
+      this.account.buying_power += notionalValue - fees
+    }
+
+    // Simple equity calculation without position data
+    this.account.total_equity = this.account.balance
+    this.account.updated_at = new Date().toISOString()
+
+    console.log(`📊 Local account updated - Balance: $${this.account.balance.toLocaleString()}`)
   }
 
   async processAISignals(): Promise<void> {
@@ -255,19 +376,30 @@ export class EnhancedPaperTradingEngine {
       return { valid: false, reason: `Symbol ${order.symbol} not in allowed list` }
     }
 
-    // Check position limits
-    const currentPositions = await tradingDB.getPositions(this.account.id)
-    if (order.side === 'buy' && currentPositions.length >= this.config.maxPositions) {
-      return { valid: false, reason: 'Maximum position limit reached' }
+    // Check position limits with error handling
+    try {
+      const currentPositions = await tradingDB.getPositions(this.account.id)
+      if (order.side === 'buy' && currentPositions.length >= this.config.maxPositions) {
+        return { valid: false, reason: 'Maximum position limit reached' }
+      }
+    } catch (error) {
+      console.log(`⚠️ Could not validate position limits due to database error: ${error}`)
+      // Continue with validation - assume position limit is OK if we can't check
     }
 
     // Check available balance for buy orders
     if (order.side === 'buy') {
-      const currentPrice = await this.getCurrentPrice(order.symbol)
-      const requiredBalance = order.quantity * currentPrice * 1.001 // Include 0.1% fees
-      
-      if (requiredBalance > this.account.buying_power) {
-        return { valid: false, reason: 'Insufficient buying power' }
+      try {
+        const currentPrice = await this.getCurrentPrice(order.symbol)
+        const requiredBalance = order.quantity * currentPrice * 1.001 // Include 0.1% fees
+        
+        if (requiredBalance > this.account.buying_power) {
+          return { valid: false, reason: 'Insufficient buying power' }
+        }
+      } catch (error) {
+        console.log(`⚠️ Could not validate balance due to price fetch error: ${error}`)
+        // Use a conservative approach - reject the order if we can't get price
+        return { valid: false, reason: 'Unable to validate order due to price data unavailability' }
       }
     }
 
@@ -275,18 +407,78 @@ export class EnhancedPaperTradingEngine {
   }
 
   private async getCurrentPrice(symbol: string): Promise<number> {
-    // Mock price data - replace with actual API calls
+    // Try to get real market data from Alpaca for US equities
+    if (this.isUSEquity(symbol)) {
+      try {
+        // Try to get real data from Alpaca
+        const positions = await alpacaClient.getPositions()
+        const position = positions.find(p => p.symbol === symbol)
+        if (position && position.current_price) {
+          const price = parseFloat(position.current_price)
+          console.log(`📊 Got real price for ${symbol} from Alpaca: $${price}`)
+          return price
+        }
+        
+        // If no position exists, we can't get current price from Alpaca without market data subscription
+        console.log(`⚠️ No position found for ${symbol} in Alpaca, using fallback price`)
+      } catch (error) {
+        console.log(`⚠️ Failed to get Alpaca price for ${symbol}, using mock data:`, error)
+      }
+    }
+    
+    // Fallback to mock prices for demo purposes
     const mockPrices: { [key: string]: number } = {
       'BTC/USD': 50000 + (Math.random() - 0.5) * 1000,
       'ETH/USD': 3000 + (Math.random() - 0.5) * 100,
       'ADA/USD': 0.5 + (Math.random() - 0.5) * 0.1,
       'SOL/USD': 100 + (Math.random() - 0.5) * 10,
+      'MATIC/USD': 0.8 + (Math.random() - 0.5) * 0.1,
       'AAPL': 150 + (Math.random() - 0.5) * 5,
       'GOOGL': 2800 + (Math.random() - 0.5) * 50,
-      'TSLA': 800 + (Math.random() - 0.5) * 20
+      'MSFT': 420 + (Math.random() - 0.5) * 10,
+      'AMZN': 180 + (Math.random() - 0.5) * 5,
+      'TSLA': 800 + (Math.random() - 0.5) * 20,
+      'NVDA': 900 + (Math.random() - 0.5) * 30,
+      'META': 520 + (Math.random() - 0.5) * 15,
+      'NFLX': 700 + (Math.random() - 0.5) * 20
     }
 
     return mockPrices[symbol] || 100
+  }
+
+  private isUSEquity(symbol: string): boolean {
+    return !symbol.includes('/') && 
+           ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NVDA', 'META', 
+            'NFLX', 'AMD', 'INTC', 'CRM', 'ADBE', 'PYPL', 'SQ'].includes(symbol)
+  }
+
+  private async executeRealOrder(order: any, executionPrice: number, fees: number, orderId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log(`🔄 Executing real order via Alpaca: ${order.side} ${order.quantity} ${order.symbol} at $${executionPrice}`)
+      
+      const alpacaOrder = await alpacaClient.placeOrder({
+        symbol: order.symbol,
+        qty: order.quantity.toString(),
+        side: order.side,
+        type: order.orderType || 'market',
+        time_in_force: 'day',
+        limit_price: order.orderType === 'limit' ? executionPrice : undefined,
+        client_order_id: `paper_${orderId}`
+      })
+
+      console.log(`✅ Alpaca order placed successfully: ${alpacaOrder.id}`)
+      
+      return {
+        success: true,
+        message: `Real order executed via Alpaca: ${alpacaOrder.id} at $${executionPrice}`
+      }
+    } catch (error) {
+      console.error(`❌ Alpaca order failed for ${order.symbol}:`, error)
+      
+      // Fallback to simulation if Alpaca fails
+      console.log('📝 Falling back to simulated execution')
+      return await this.simulateExecution({ id: orderId, side: order.side } as any, executionPrice, fees)
+    }
   }
 
   private async simulateExecution(order: TradingOrder, price: number, fees: number): Promise<{ success: boolean; message: string }> {
@@ -355,9 +547,7 @@ export class EnhancedPaperTradingEngine {
         avg_cost: executionPrice,
         current_price: executionPrice,
         market_value: order.quantity * executionPrice,
-        unrealized_pnl: 0,
-        strategy_used: order.strategy,
-        confidence_score: order.confidence
+        unrealized_pnl: 0
       })
     }
   }
@@ -399,30 +589,59 @@ export class EnhancedPaperTradingEngine {
   async getPortfolioMetrics(): Promise<PortfolioMetrics | null> {
     if (!this.account) return null
 
-    const performanceData = await tradingDB.getPerformanceMetrics(this.account.id)
-    
-    return {
-      totalValue: this.account.total_equity,
-      totalPnL: this.account.total_equity - this.account.initial_balance,
-      totalPnLPercent: ((this.account.total_equity - this.account.initial_balance) / this.account.initial_balance) * 100,
-      dayPnL: 0, // Would calculate from daily data
-      dayPnLPercent: 0,
-      winRate: performanceData.winRate,
-      totalTrades: performanceData.totalOrders,
-      activePositions: performanceData.totalPositionsValue > 0 ? 1 : 0, // Simplified
-      availableBalance: this.account.balance,
-      marginUsed: this.account.total_equity - this.account.balance
+    try {
+      const performanceData = await tradingDB.getPerformanceMetrics(this.account.id)
+      
+      return {
+        totalValue: this.account.total_equity,
+        totalPnL: this.account.total_equity - this.account.initial_balance,
+        totalPnLPercent: ((this.account.total_equity - this.account.initial_balance) / this.account.initial_balance) * 100,
+        dayPnL: 0, // Would calculate from daily data
+        dayPnLPercent: 0,
+        winRate: performanceData.winRate || 0,
+        totalTrades: performanceData.totalTrades || 0,
+        activePositions: performanceData.activePositions || 0,
+        availableBalance: this.account.balance,
+        marginUsed: this.account.total_equity - this.account.balance
+      }
+    } catch (error) {
+      console.log(`⚠️ Failed to get performance data from database: ${error}`)
+      // Return basic metrics using only account data
+      return {
+        totalValue: this.account.total_equity,
+        totalPnL: this.account.total_equity - this.account.initial_balance,
+        totalPnLPercent: ((this.account.total_equity - this.account.initial_balance) / this.account.initial_balance) * 100,
+        dayPnL: 0,
+        dayPnLPercent: 0,
+        winRate: 0,
+        totalTrades: 0,
+        activePositions: 0,
+        availableBalance: this.account.balance,
+        marginUsed: this.account.total_equity - this.account.balance
+      }
     }
   }
 
   async getAllPositions(): Promise<TradingPosition[]> {
     if (!this.account) return []
-    return await tradingDB.getPositions(this.account.id)
+    
+    try {
+      return await tradingDB.getPositions(this.account.id)
+    } catch (error) {
+      console.log(`⚠️ Failed to get positions from database: ${error}`)
+      return [] // Return empty array as fallback
+    }
   }
 
   async getAllOrders(limit = 50): Promise<TradingOrder[]> {
     if (!this.account) return []
-    return await tradingDB.getOrders(this.account.id, limit)
+    
+    try {
+      return await tradingDB.getOrders(this.account.id, limit)
+    } catch (error) {
+      console.log(`⚠️ Failed to get orders from database: ${error}`)
+      return [] // Return empty array as fallback
+    }
   }
 
   async closePosition(symbol: string, reason = 'Manual close'): Promise<TradeExecutionResult> {
@@ -442,7 +661,7 @@ export class EnhancedPaperTradingEngine {
 
     return await this.executeOrder({
       symbol,
-      side: position.side === 'buy' ? 'sell' : 'buy',
+      side: position.side === 'long' ? 'sell' : 'buy',
       quantity: position.quantity,
       strategy: 'Position Close',
       reasoning: reason,
@@ -475,6 +694,185 @@ export class EnhancedPaperTradingEngine {
 
   getAccount(): TradingAccount | null {
     return this.account
+  }
+
+  /**
+   * Get database connection status and statistics
+   */
+  getDatabaseStatus(): any {
+    return tradingDB.getStatus()
+  }
+
+  /**
+   * Attempt to reconnect to database
+   */
+  async reconnectDatabase(): Promise<boolean> {
+    try {
+      const reconnected = await tradingDB.reconnect()
+      if (reconnected) {
+        console.log('✅ Successfully reconnected to Supabase database')
+      } else {
+        console.log('⚠️ Database reconnection failed, continuing with in-memory storage')
+      }
+      return reconnected
+    } catch (error) {
+      console.log(`❌ Database reconnection error: ${error}`)
+      return false
+    }
+  }
+
+  async syncWithAlpaca(): Promise<void> {
+    if (!this.account) {
+      console.log('⚠️ No account initialized, cannot sync with Alpaca')
+      return
+    }
+
+    try {
+      console.log('🔄 Syncing with Alpaca account data...')
+      
+      // Get Alpaca account data
+      const alpacaAccount = await alpacaClient.getAccount()
+      const alpacaPositions = await alpacaClient.getPositions()
+      
+      // Update local account with Alpaca data
+      const updatedBalance = parseFloat(alpacaAccount.cash)
+      const updatedEquity = parseFloat(alpacaAccount.equity)
+      const updatedBuyingPower = parseFloat(alpacaAccount.buying_power)
+      
+      try {
+        await tradingDB.updateAccount(this.account.id, {
+          balance: updatedBalance,
+          total_equity: updatedEquity,
+          buying_power: updatedBuyingPower
+        })
+      } catch (error) {
+        console.log(`⚠️ Failed to update account in database during Alpaca sync: ${error}`)
+      }
+
+      // Update local account object regardless of database success
+      this.account.balance = updatedBalance
+      this.account.total_equity = updatedEquity
+      this.account.buying_power = updatedBuyingPower
+      this.account.updated_at = new Date().toISOString()
+
+      console.log(`✅ Synced with Alpaca - Balance: $${updatedBalance.toLocaleString()}, Equity: $${updatedEquity.toLocaleString()}`)
+      
+      // Sync positions with error handling
+      try {
+        await this.syncAlpacaPositions(alpacaPositions)
+      } catch (error) {
+        console.log(`⚠️ Failed to sync positions during Alpaca sync: ${error}`)
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to sync with Alpaca:', error)
+      throw error // Re-throw to let caller know sync failed
+    }
+  }
+
+  private async syncAlpacaPositions(alpacaPositions: any[]): Promise<void> {
+    if (!this.account) return
+
+    try {
+      // Get current database positions with error handling
+      let dbPositions: TradingPosition[] = []
+      try {
+        dbPositions = await tradingDB.getPositions(this.account.id)
+      } catch (error) {
+        console.log(`⚠️ Failed to get positions from database during sync: ${error}`)
+        // Continue with empty positions list
+      }
+      
+      // Update existing positions and add new ones
+      for (const alpacaPos of alpacaPositions) {
+        const existingPos = dbPositions.find(p => p.symbol === alpacaPos.symbol)
+        
+        const positionData = {
+          symbol: alpacaPos.symbol,
+          quantity: parseFloat(alpacaPos.qty),
+          avg_cost: parseFloat(alpacaPos.avg_entry_price),
+          current_price: parseFloat(alpacaPos.current_price),
+          market_value: parseFloat(alpacaPos.market_value),
+          unrealized_pnl: parseFloat(alpacaPos.unrealized_pl),
+          side: alpacaPos.side as 'long' | 'short'
+        }
+        
+        try {
+          if (existingPos) {
+            await tradingDB.updatePosition(existingPos.id, positionData)
+            console.log(`🔄 Updated position: ${alpacaPos.symbol}`)
+          } else {
+            await tradingDB.createPosition({
+              account_id: this.account.id,
+              ...positionData
+            })
+            console.log(`➕ Added new position: ${alpacaPos.symbol}`)
+          }
+        } catch (error) {
+          console.log(`⚠️ Failed to sync position ${alpacaPos.symbol}: ${error}`)
+        }
+      }
+      
+      // Remove positions that no longer exist in Alpaca
+      const alpacaSymbols = alpacaPositions.map(p => p.symbol)
+      for (const dbPos of dbPositions) {
+        if (!alpacaSymbols.includes(dbPos.symbol)) {
+          try {
+            await tradingDB.updatePosition(dbPos.id, { quantity: 0 })
+            console.log(`❌ Closed position: ${dbPos.symbol} (no longer in Alpaca)`)
+          } catch (error) {
+            console.log(`⚠️ Failed to close position ${dbPos.symbol}: ${error}`)
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to sync positions:', error)
+      // Don't throw - this is not critical for operation
+    }
+  }
+
+  async getAlpacaPortfolioData(): Promise<any> {
+    try {
+      const account = await alpacaClient.getAccount()
+      const positions = await alpacaClient.getPositions()
+      const orders = await alpacaClient.getOrders()
+      
+      return {
+        account: {
+          cash: parseFloat(account.cash),
+          buyingPower: parseFloat(account.buying_power),
+          portfolioValue: parseFloat(account.portfolio_value),
+          equity: parseFloat(account.equity),
+          dayPnL: parseFloat(account.equity) - parseFloat(account.last_equity),
+          totalPnL: parseFloat(account.equity) - this.config.initialBalance
+        },
+        positions: positions.map(pos => ({
+          symbol: pos.symbol,
+          quantity: parseFloat(pos.qty),
+          marketValue: parseFloat(pos.market_value),
+          unrealizedPnL: parseFloat(pos.unrealized_pl),
+          unrealizedPnLPercent: parseFloat(pos.unrealized_plpc),
+          side: pos.side,
+          avgEntryPrice: parseFloat(pos.avg_entry_price),
+          currentPrice: parseFloat(pos.current_price)
+        })),
+        recentOrders: orders.slice(0, 10).map(order => ({
+          id: order.id,
+          symbol: order.symbol,
+          side: order.side,
+          quantity: parseFloat(order.qty || '0'),
+          price: parseFloat((order.limit_price || order.filled_avg_price || '0').toString()),
+          status: order.status,
+          orderType: order.order_type,
+          createdAt: order.created_at,
+          filledAt: order.filled_at
+        }))
+      }
+    } catch (error) {
+      console.error('❌ Failed to get Alpaca portfolio data:', error)
+      throw error
+    }
   }
 }
 

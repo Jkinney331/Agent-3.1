@@ -7,6 +7,7 @@
 
 // Main bot class
 export { TradingBot } from './trading-bot';
+import { TradingBot } from './trading-bot';
 
 // Core components
 export { BotMiddleware, type MiddlewareResult } from './bot-middleware';
@@ -91,7 +92,7 @@ export async function healthCheckTelegramBot(bot: TradingBot): Promise<{
     const [webhookHealth, schedulerStatus] = await Promise.all([
       webhookHandler.healthCheck(),
       Promise.resolve({
-        running: scheduler.isRunning(),
+        running: scheduler.isSchedulerRunning(),
         jobsCount: scheduler.getScheduledJobsCount()
       })
     ]);

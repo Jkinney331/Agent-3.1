@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { simplePaperTradingEngine as paperTradingEngine } from '@/lib/trading/simple-paper-trading'
+import { paperTradingEngine } from '@/lib/trading/enhanced-paper-trading-engine'
 import { adaptiveStrategyManager } from '@/lib/trading/adaptive-strategy-manager'
 
 // Helper function to ensure trading engine is initialized
@@ -119,6 +119,44 @@ export async function GET(request: NextRequest) {
           success: true,
           data: signals
         })
+
+      case 'sync-alpaca':
+        await ensureInitialized(userId)
+        
+        try {
+          await paperTradingEngine.syncWithAlpaca()
+          
+          return NextResponse.json({
+            success: true,
+            message: 'Successfully synced with Alpaca',
+            account: paperTradingEngine.getAccount()
+          })
+        } catch (error) {
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to sync with Alpaca',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }, { status: 500 })
+        }
+
+      case 'alpaca-portfolio':
+        await ensureInitialized(userId)
+        
+        try {
+          const portfolioData = await paperTradingEngine.getAlpacaPortfolioData()
+          
+          return NextResponse.json({
+            success: true,
+            data: portfolioData,
+            source: 'alpaca_live'
+          })
+        } catch (error) {
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to get Alpaca portfolio data',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }, { status: 500 })
+        }
 
       default:
         return NextResponse.json({

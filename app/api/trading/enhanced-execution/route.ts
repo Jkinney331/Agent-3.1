@@ -110,6 +110,9 @@ export async function POST(request: NextRequest) {
       
       case 'test-connections':
         return await handleTestConnections();
+      
+      case 'execute-ai-decision':
+        return await handleExecuteAIDecision(body);
 
       default:
         return NextResponse.json({ 
@@ -347,4 +350,201 @@ async function handleTestConnections() {
     success: true, 
     data: connections 
   });
+}
+
+async function handleExecuteAIDecision(body: any) {
+  const startTime = Date.now();
+  const requestId = `ai-exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  try {
+    const {
+      tradingDecision,
+      executionMode = 'paper',
+      credentials,
+      riskParameters
+    } = body;
+
+    console.log('🤖 AI Decision Execution Started:', {
+      requestId,
+      symbol: tradingDecision?.symbol,
+      action: tradingDecision?.action,
+      confidence: tradingDecision?.confidence,
+      shouldTrade: tradingDecision?.shouldTrade
+    });
+
+    // Validate trading decision
+    if (!tradingDecision || typeof tradingDecision !== 'object') {
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid or missing trading decision',
+        requestId
+      }, { status: 400 });
+    }
+
+    const decision = tradingDecision;
+    
+    // Enhanced validation
+    const validationErrors: string[] = [];
+    if (!decision.symbol) validationErrors.push('Missing symbol');
+    if (!decision.action || !['BUY', 'SELL', 'HOLD'].includes(decision.action)) {
+      validationErrors.push('Invalid action');
+    }
+    if (typeof decision.confidence !== 'number' || decision.confidence < 0 || decision.confidence > 100) {
+      validationErrors.push('Invalid confidence level');
+    }
+
+    if (validationErrors.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Validation failed',
+        details: validationErrors,
+        requestId
+      }, { status: 400 });
+    }
+
+    // Risk assessment
+    const riskChecks = {
+      highRisk: decision.riskAssessment?.riskLevel === 'HIGH',
+      lowConfidence: decision.confidence < 70,
+      largePosition: (decision.positionSize || 0) > 0.1,
+      noTradingSignal: !decision.shouldTrade
+    };
+
+    const riskWarnings = Object.entries(riskChecks)
+      .filter(([_, failed]) => failed)
+      .map(([check, _]) => check);
+
+    let executionResult = {
+      executed: false,
+      orderId: null,
+      executionPrice: null,
+      quantity: null,
+      timestamp: new Date().toISOString(),
+      executionMode,
+      reason: 'Not executed',
+      exchange: null
+    };
+
+    // Execute if conditions are met
+    if (decision.shouldTrade && !riskChecks.highRisk && decision.action !== 'HOLD') {
+      try {
+        // Calculate position size
+        const capitalToUse = parseFloat(process.env.TRADING_CAPITAL || '50000');
+        const positionValue = capitalToUse * (decision.positionSize || 0.05);
+        const estimatedPrice = decision.entryPrice || 50000; // Default BTC price
+        const quantity = Math.max(0.001, positionValue / estimatedPrice); // Min quantity for crypto
+
+        // Use unified exchange manager for execution
+        const orderParams = {
+          symbol: decision.symbol,
+          side: decision.action.toLowerCase() as 'buy' | 'sell',
+          quantity: parseFloat(quantity.toFixed(6)),
+          type: 'market' as const,
+          price: decision.entryPrice,
+          preferredExchange: 'binance',
+          allowFallback: true
+        };
+
+        // Validate order through risk manager
+        const validation = await advancedRiskManager.validateOrder(
+          orderParams,
+          orderParams.preferredExchange
+        );
+
+        if (validation.allowed) {
+          const result = await unifiedExchangeManager.executeOrder(orderParams);
+          
+          if (result.success && result.orderResult) {
+            executionResult = {
+              executed: true,
+              orderId: result.orderResult.orderId,
+              executionPrice: result.orderResult.avgFillPrice,
+              quantity: result.orderResult.filledQty,
+              timestamp: new Date().toISOString(),
+              executionMode,
+              reason: `Successfully executed via ${result.exchange}`,
+              exchange: result.exchange
+            };
+
+            // Record for transition tracking
+            paperToLiveManager.recordTrade({
+              symbol: decision.symbol,
+              side: decision.action.toLowerCase(),
+              quantity: result.orderResult.filledQty,
+              entryPrice: result.orderResult.avgFillPrice,
+              entryTime: new Date(),
+              status: 'open',
+              exchange: result.exchange
+            });
+
+            console.log('✅ AI Decision Executed:', {
+              requestId,
+              orderId: result.orderResult.orderId,
+              symbol: decision.symbol,
+              quantity: result.orderResult.filledQty,
+              exchange: result.exchange
+            });
+          } else {
+            executionResult.reason = `Execution failed: ${result.error}`;
+          }
+        } else {
+          executionResult.reason = `Risk validation failed: ${validation.reason}`;
+        }
+      } catch (error: any) {
+        console.error('❌ AI Decision Execution Error:', error);
+        executionResult.reason = `Execution error: ${error.message}`;
+      }
+    } else {
+      const reasons = [
+        !decision.shouldTrade ? 'AI signal indicates HOLD' : null,
+        riskChecks.highRisk ? 'Risk level too high' : null,
+        riskChecks.lowConfidence ? 'Confidence below threshold' : null,
+        decision.action === 'HOLD' ? 'Action is HOLD' : null
+      ].filter(Boolean);
+
+      executionResult.reason = `Not executed: ${reasons.join(', ')}`;
+    }
+
+    const executionTime = Date.now() - startTime;
+
+    const response = {
+      success: true,
+      requestId,
+      timestamp: new Date().toISOString(),
+      execution: executionResult,
+      tradingDecision: {
+        ...decision,
+        riskWarnings: riskWarnings.length > 0 ? riskWarnings : undefined
+      },
+      analysis: {
+        riskChecks,
+        executionRecommendation: decision.shouldTrade ? 'EXECUTE' : 'HOLD',
+        confidenceLevel: decision.confidence >= 80 ? 'HIGH' : 
+                        decision.confidence >= 60 ? 'MEDIUM' : 'LOW'
+      },
+      metadata: {
+        executionTimeMs: executionTime,
+        version: '2.0.0',
+        executionMode
+      }
+    };
+
+    return NextResponse.json(response);
+
+  } catch (error: any) {
+    const executionTime = Date.now() - startTime;
+    console.error('💥 AI Decision Execution Critical Error:', {
+      requestId,
+      error: error.message,
+      executionTime: `${executionTime}ms`
+    });
+
+    return NextResponse.json({
+      success: false,
+      error: 'AI decision execution failed',
+      details: error.message,
+      requestId,
+      executionTimeMs: executionTime
+    }, { status: 500 });
+  }
 } 

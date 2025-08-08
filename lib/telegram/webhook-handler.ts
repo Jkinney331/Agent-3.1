@@ -167,14 +167,23 @@ export class WebhookHandler {
       if (update.message) {
         botUpdate.message = update.message;
         // Emit message event to trigger bot's message handlers
-        this.bot.emit('message', update.message);
+        // Forward message to bot handler explicitly to avoid type issues
+        if (typeof (this.bot as any).processUpdate === 'function') {
+          (this.bot as any).processUpdate({ update_id: update.update_id, message: update.message });
+        } else {
+          (this.bot as any).emit?.('message', update.message as any);
+        }
       }
 
       // Handle callback query updates
       if (update.callback_query) {
         botUpdate.callback_query = update.callback_query;
         // Emit callback_query event
-        this.bot.emit('callback_query', update.callback_query);
+        if (typeof (this.bot as any).processUpdate === 'function') {
+          (this.bot as any).processUpdate({ update_id: update.update_id, callback_query: update.callback_query });
+        } else {
+          (this.bot as any).emit?.('callback_query', update.callback_query as any);
+        }
       }
 
       // Handle other update types if needed
@@ -226,7 +235,7 @@ export class WebhookHandler {
    */
   public async removeWebhook(): Promise<{ success: boolean; error?: string }> {
     try {
-      const result = await this.bot.deleteWebHook({ drop_pending_updates: true });
+      const result = await this.bot.deleteWebHook();
       
       if (result) {
         console.log('Webhook successfully removed');

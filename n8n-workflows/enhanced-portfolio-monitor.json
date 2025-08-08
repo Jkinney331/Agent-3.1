@@ -1,0 +1,460 @@
+{
+  "name": "💼 PORTFOLIO & RISK MONITOR",
+  "description": "Real-time portfolio tracking with Alpaca integration and comprehensive risk management",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "portfolio-monitor-trigger",
+      "name": "⏱️ Portfolio Monitor Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.ALPACA_BASE_URL }}/account",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "APCA-API-KEY-ID",
+              "value": "={{ $vars.ALPACA_API_KEY }}"
+            },
+            {
+              "name": "APCA-API-SECRET-KEY",
+              "value": "={{ $vars.ALPACA_SECRET_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "get-alpaca-account",
+      "name": "🏦 Get Alpaca Account",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.ALPACA_BASE_URL }}/positions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "APCA-API-KEY-ID",
+              "value": "={{ $vars.ALPACA_API_KEY }}"
+            },
+            {
+              "name": "APCA-API-SECRET-KEY",
+              "value": "={{ $vars.ALPACA_SECRET_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "get-alpaca-positions",
+      "name": "📈 Get Alpaca Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.ALPACA_BASE_URL }}/orders",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "all"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "direction",
+              "value": "desc"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "APCA-API-KEY-ID",
+              "value": "={{ $vars.ALPACA_API_KEY }}"
+            },
+            {
+              "name": "APCA-API-SECRET-KEY",
+              "value": "={{ $vars.ALPACA_SECRET_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "get-alpaca-orders",
+      "name": "📜 Get Alpaca Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [400, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Portfolio Analytics with Real Alpaca Data\nconst account = $input.first().json || {};\nconst positions = $input.all()[1].json || [];\nconst orders = $input.all()[2].json || [];\nconst timestamp = new Date().toISOString();\n\nconsole.log('💼 Processing Portfolio Data:', {\n  accountStatus: account.status,\n  positionCount: Array.isArray(positions) ? positions.length : 0,\n  orderCount: Array.isArray(orders) ? orders.length : 0,\n  timestamp\n});\n\n// Account Overview from Alpaca\nconst accountSummary = {\n  accountId: account.id || 'unknown',\n  status: account.status || 'unknown',\n  currency: account.currency || 'USD',\n  buyingPower: parseFloat(account.buying_power || 0),\n  cash: parseFloat(account.cash || 0),\n  portfolioValue: parseFloat(account.portfolio_value || 0),\n  equity: parseFloat(account.equity || 0),\n  lastEquity: parseFloat(account.last_equity || 0),\n  daytradeCount: parseInt(account.daytrade_count || 0),\n  multiplier: parseFloat(account.multiplier || 1)\n};\n\n// Calculate daily P&L\nconst dailyPnL = accountSummary.equity - accountSummary.lastEquity;\nconst dailyPnLPercentage = accountSummary.lastEquity > 0 ? (dailyPnL / accountSummary.lastEquity) * 100 : 0;\n\n// Process positions\nconst positionDetails = Array.isArray(positions) ? positions.map(pos => {\n  const marketValue = parseFloat(pos.market_value || 0);\n  const unrealizedPnL = parseFloat(pos.unrealized_pl || 0);\n  const unrealizedPnLPercent = parseFloat(pos.unrealized_plpc || 0) * 100;\n  const costBasis = parseFloat(pos.cost_basis || 0);\n  \n  return {\n    symbol: pos.symbol,\n    qty: parseFloat(pos.qty || 0),\n    side: pos.side,\n    marketValue,\n    avgEntryPrice: parseFloat(pos.avg_entry_price || 0),\n    currentPrice: parseFloat(pos.current_price || 0),\n    costBasis,\n    unrealizedPnL,\n    unrealizedPnLPercent: parseFloat(unrealizedPnLPercent.toFixed(2)),\n    changeTodayPercent: parseFloat((pos.change_today || 0) * 100).toFixed(2)\n  };\n}) : [];\n\n// Calculate portfolio metrics\nconst totalPositionValue = positionDetails.reduce((sum, pos) => sum + pos.marketValue, 0);\nconst totalUnrealizedPnL = positionDetails.reduce((sum, pos) => sum + pos.unrealizedPnL, 0);\nconst numberOfPositions = positionDetails.length;\nconst largestPosition = Math.max(...positionDetails.map(p => Math.abs(p.marketValue)), 0);\nconst positionConcentration = totalPositionValue > 0 ? (largestPosition / totalPositionValue) * 100 : 0;\n\n// Process recent orders for performance analysis\nconst recentOrders = Array.isArray(orders) ? orders.slice(0, 20) : [];\nconst filledOrders = recentOrders.filter(order => order.status === 'filled');\nconst cancelledOrders = recentOrders.filter(order => order.status === 'cancelled');\nconst orderFillRate = recentOrders.length > 0 ? (filledOrders.length / recentOrders.length) * 100 : 0;\n\n// Risk Assessment\nconst riskMetrics = {\n  portfolioValue: accountSummary.portfolioValue,\n  cashPosition: accountSummary.cash,\n  buyingPowerUsed: accountSummary.portfolioValue - accountSummary.cash,\n  buyingPowerUtilization: accountSummary.buyingPower > 0 ? \n    ((accountSummary.portfolioValue - accountSummary.cash) / accountSummary.buyingPower) * 100 : 0,\n  positionCount: numberOfPositions,\n  positionConcentration: parseFloat(positionConcentration.toFixed(2)),\n  largestPositionValue: largestPosition,\n  daytradingCount: accountSummary.daytradeCount,\n  leverage: accountSummary.multiplier\n};\n\n// Performance Metrics\nconst performanceMetrics = {\n  dailyPnL: parseFloat(dailyPnL.toFixed(2)),\n  dailyPnLPercentage: parseFloat(dailyPnLPercentage.toFixed(2)),\n  totalUnrealizedPnL: parseFloat(totalUnrealizedPnL.toFixed(2)),\n  totalUnrealizedPnLPercent: accountSummary.portfolioValue > 0 ? \n    parseFloat(((totalUnrealizedPnL / accountSummary.portfolioValue) * 100).toFixed(2)) : 0,\n  orderFillRate: parseFloat(orderFillRate.toFixed(1)),\n  totalOrders: recentOrders.length,\n  filledOrders: filledOrders.length,\n  cancelledOrders: cancelledOrders.length\n};\n\n// Generate Alerts\nconst alerts = {\n  highRisk: riskMetrics.buyingPowerUtilization > 80,\n  lowCash: riskMetrics.cashPosition < (accountSummary.portfolioValue * 0.1), // Less than 10% cash\n  concentrationRisk: riskMetrics.positionConcentration > 50,\n  largeDrawdown: performanceMetrics.dailyPnLPercentage < -5,\n  highDaytrading: riskMetrics.daytradingCount > 2, // Approaching PDT limit\n  unusualActivity: performanceMetrics.totalOrders > 20,\n  lowFillRate: performanceMetrics.orderFillRate < 80\n};\n\n// Recommendations\nconst recommendations = {\n  action: performanceMetrics.dailyPnLPercentage > 2 ? 'MONITOR_PROFITS' : \n         performanceMetrics.dailyPnLPercentage < -3 ? 'REVIEW_POSITIONS' : 'CONTINUE_MONITORING',\n  priority: Object.values(alerts).some(Boolean) ? 'HIGH' : \n           Math.abs(performanceMetrics.dailyPnLPercentage) > 1 ? 'MEDIUM' : 'LOW',\n  suggestions: [\n    alerts.highRisk ? 'Reduce position sizes or increase cash reserves' : null,\n    alerts.concentrationRisk ? 'Diversify portfolio allocation' : null,\n    alerts.lowCash ? 'Consider reducing positions to maintain cash buffer' : null,\n    alerts.largeDrawdown ? 'Review stop-loss strategies and risk management' : null,\n    alerts.highDaytrading ? 'Monitor day trading count to avoid PDT restrictions' : null,\n    alerts.lowFillRate ? 'Review order types and market conditions' : null,\n    performanceMetrics.dailyPnLPercentage > 3 ? 'Consider taking profits on winning positions' : null\n  ].filter(Boolean)\n};\n\n// Comprehensive Portfolio Report\nconst portfolioAnalysis = {\n  timestamp,\n  account: accountSummary,\n  positions: positionDetails,\n  riskMetrics,\n  performanceMetrics,\n  alerts,\n  recommendations,\n  marketData: {\n    tradingDay: new Date().toDateString(),\n    marketHours: 'Check if market is open', // Could be enhanced with market hours API\n    lastUpdate: timestamp\n  }\n};\n\nreturn [{ json: { portfolioAnalysis } }];"
+      },
+      "id": "enhanced-portfolio-analytics",
+      "name": "🧮 Enhanced Portfolio Analytics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "risk-alert-condition",
+              "leftValue": "={{ $json.portfolioAnalysis.alerts.highRisk || $json.portfolioAnalysis.alerts.largeDrawdown || $json.portfolioAnalysis.alerts.concentrationRisk }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "risk-alert-check",
+      "name": "🚨 Risk Alert Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/portfolio_snapshots",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"account_id\": $json.portfolioAnalysis.account.accountId,\n  \"portfolio_value\": $json.portfolioAnalysis.account.portfolioValue,\n  \"cash\": $json.portfolioAnalysis.account.cash,\n  \"equity\": $json.portfolioAnalysis.account.equity,\n  \"buying_power\": $json.portfolioAnalysis.account.buyingPower,\n  \"daily_pnl\": $json.portfolioAnalysis.performanceMetrics.dailyPnL,\n  \"daily_pnl_percentage\": $json.portfolioAnalysis.performanceMetrics.dailyPnLPercentage,\n  \"unrealized_pnl\": $json.portfolioAnalysis.performanceMetrics.totalUnrealizedPnL,\n  \"position_count\": $json.portfolioAnalysis.riskMetrics.positionCount,\n  \"risk_level\": $json.portfolioAnalysis.recommendations.priority,\n  \"alerts\": JSON.stringify($json.portfolioAnalysis.alerts),\n  \"metadata\": JSON.stringify($json.portfolioAnalysis),\n  \"created_at\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "save-portfolio-snapshot",
+      "name": "💾 Save Portfolio Snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [800, 700]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/trading-notification",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"body\": {\n    \"type\": \"RISK_ALERT\",\n    \"message\": \"Portfolio risk alert triggered\",\n    \"level\": $json.portfolioAnalysis.recommendations.priority,\n    \"risk\": $json.portfolioAnalysis.riskMetrics.buyingPowerUtilization.toFixed(1) + '% buying power used',\n    \"pnl\": '$' + $json.portfolioAnalysis.performanceMetrics.dailyPnL,\n    \"positions\": $json.portfolioAnalysis.riskMetrics.positionCount,\n    \"leverage\": $json.portfolioAnalysis.riskMetrics.leverage + 'x',\n    \"priority\": \"HIGH\",\n    \"alerts\": Object.keys($json.portfolioAnalysis.alerts).filter(key => $json.portfolioAnalysis.alerts[key]),\n    \"recommendations\": $json.portfolioAnalysis.recommendations.suggestions.join('; '),\n    \"timestamp\": new Date().toISOString()\n  }\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-risk-alert",
+      "name": "🚨 Send Risk Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Enhanced Daily Portfolio Report\nconst analysis = $input.first().json.portfolioAnalysis;\nconst timestamp = new Date().toISOString();\nconst date = new Date().toDateString();\n\n// Enhanced Performance Summary\nconst summary = {\n  reportDate: date,\n  reportTime: timestamp,\n  accountOverview: {\n    accountId: analysis.account.accountId,\n    portfolioValue: `$${analysis.account.portfolioValue.toLocaleString()}`,\n    equity: `$${analysis.account.equity.toLocaleString()}`,\n    cash: `$${analysis.account.cash.toLocaleString()}`,\n    buyingPower: `$${analysis.account.buyingPower.toLocaleString()}`,\n    dailyPnL: `${analysis.performanceMetrics.dailyPnL >= 0 ? '+' : ''}$${analysis.performanceMetrics.dailyPnL.toLocaleString()}`,\n    dailyPnLPercent: `${analysis.performanceMetrics.dailyPnLPercentage >= 0 ? '+' : ''}${analysis.performanceMetrics.dailyPnLPercentage}%`\n  },\n  tradingActivity: {\n    activePositions: analysis.riskMetrics.positionCount,\n    totalOrders: analysis.performanceMetrics.totalOrders,\n    filledOrders: analysis.performanceMetrics.filledOrders,\n    orderFillRate: `${analysis.performanceMetrics.orderFillRate}%`,\n    daytradeCount: analysis.riskMetrics.daytradingCount,\n    buyingPowerUtilization: `${analysis.riskMetrics.buyingPowerUtilization.toFixed(1)}%`\n  },\n  riskAssessment: {\n    riskLevel: analysis.recommendations.priority,\n    positionConcentration: `${analysis.riskMetrics.positionConcentration}%`,\n    largestPosition: `$${analysis.riskMetrics.largestPositionValue.toLocaleString()}`,\n    leverage: `${analysis.riskMetrics.leverage}x`,\n    activeAlerts: Object.keys(analysis.alerts).filter(key => analysis.alerts[key]).length\n  },\n  topPositions: analysis.positions.slice(0, 5).map(pos => ({\n    symbol: pos.symbol,\n    side: pos.side,\n    qty: pos.qty,\n    marketValue: `$${pos.marketValue.toLocaleString()}`,\n    unrealizedPnL: `${pos.unrealizedPnL >= 0 ? '+' : ''}$${pos.unrealizedPnL.toFixed(2)}`,\n    unrealizedPnLPercent: `${pos.unrealizedPnLPercent >= 0 ? '+' : ''}${pos.unrealizedPnLPercent}%`,\n    currentPrice: `$${pos.currentPrice.toFixed(2)}`\n  })),\n  alerts: Object.keys(analysis.alerts).filter(key => analysis.alerts[key]),\n  recommendations: analysis.recommendations.suggestions,\n  marketInsights: {\n    recommendedAction: analysis.recommendations.action,\n    priority: analysis.recommendations.priority,\n    nextReview: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() // 2 hours\n  }\n};\n\n// Generate Performance Grade\nconst gradeFactors = [\n  analysis.performanceMetrics.dailyPnLPercentage >= 0 ? 25 : Math.max(0, 25 + analysis.performanceMetrics.dailyPnLPercentage * 5),\n  analysis.performanceMetrics.orderFillRate >= 90 ? 25 : analysis.performanceMetrics.orderFillRate * 0.25,\n  analysis.riskMetrics.buyingPowerUtilization <= 60 ? 25 : Math.max(0, 25 - (analysis.riskMetrics.buyingPowerUtilization - 60) * 0.5),\n  Object.values(analysis.alerts).filter(Boolean).length === 0 ? 25 : Math.max(0, 25 - Object.values(analysis.alerts).filter(Boolean).length * 5)\n];\n\nconst performanceScore = gradeFactors.reduce((sum, factor) => sum + factor, 0);\nconst performanceGrade = performanceScore >= 85 ? 'A' : \n                       performanceScore >= 70 ? 'B' : \n                       performanceScore >= 55 ? 'C' : \n                       performanceScore >= 40 ? 'D' : 'F';\n\nconst dailyReport = {\n  ...summary,\n  performanceGrade: {\n    score: Math.round(performanceScore),\n    grade: performanceGrade,\n    breakdown: {\n      dailyReturns: Math.round(gradeFactors[0]),\n      orderExecution: Math.round(gradeFactors[1]),\n      riskManagement: Math.round(gradeFactors[2]),\n      alertStatus: Math.round(gradeFactors[3])\n    }\n  }\n};\n\nreturn [{ json: { dailyReport, rawAnalysis: analysis } }];"
+      },
+      "id": "generate-enhanced-report",
+      "name": "📋 Generate Enhanced Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "significant-change",
+              "leftValue": "={{ Math.abs($json.rawAnalysis.performanceMetrics.dailyPnLPercentage) > 1 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "grade-extreme",
+              "leftValue": "={{ $json.dailyReport.performanceGrade.grade === 'A' || $json.dailyReport.performanceGrade.grade === 'F' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "has-alerts",
+              "leftValue": "={{ $json.dailyReport.alerts.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "report-notification-check",
+      "name": "📤 Report Notification Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1200, 700]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/trading-notification",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"body\": {\n    \"type\": \"PORTFOLIO_PERFORMANCE\",\n    \"title\": \"Daily Portfolio Report - Grade \" + $json.dailyReport.performanceGrade.grade,\n    \"summary\": {\n      \"equity\": $json.dailyReport.accountOverview.equity,\n      \"dailyPnL\": $json.dailyReport.accountOverview.dailyPnL,\n      \"positions\": $json.dailyReport.tradingActivity.activePositions,\n      \"fillRate\": $json.dailyReport.tradingActivity.orderFillRate,\n      \"grade\": $json.dailyReport.performanceGrade.grade,\n      \"score\": $json.dailyReport.performanceGrade.score\n    },\n    \"highlights\": [\n      \"Daily P&L: \" + $json.dailyReport.accountOverview.dailyPnL,\n      \"Portfolio Value: \" + $json.dailyReport.accountOverview.portfolioValue,\n      \"Active Positions: \" + $json.dailyReport.tradingActivity.activePositions,\n      \"Order Fill Rate: \" + $json.dailyReport.tradingActivity.orderFillRate,\n      \"Performance Grade: \" + $json.dailyReport.performanceGrade.grade\n    ],\n    \"recommendations\": $json.dailyReport.recommendations,\n    \"alerts\": $json.dailyReport.alerts,\n    \"priority\": $json.dailyReport.marketInsights.priority,\n    \"timestamp\": new Date().toISOString()\n  }\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-report-notification",
+      "name": "📨 Send Report Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1400, 700]
+    }
+  ],
+  "connections": {
+    "⏱️ Portfolio Monitor Schedule": {
+      "main": [
+        [
+          {
+            "node": "🏦 Get Alpaca Account",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📈 Get Alpaca Positions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📜 Get Alpaca Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏦 Get Alpaca Account": {
+      "main": [
+        [
+          {
+            "node": "🧮 Enhanced Portfolio Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 Get Alpaca Positions": {
+      "main": [
+        [
+          {
+            "node": "🧮 Enhanced Portfolio Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 Get Alpaca Orders": {
+      "main": [
+        [
+          {
+            "node": "🧮 Enhanced Portfolio Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Enhanced Portfolio Analytics": {
+      "main": [
+        [
+          {
+            "node": "🚨 Risk Alert Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💾 Save Portfolio Snapshot",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Generate Enhanced Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Risk Alert Check": {
+      "main": [
+        [
+          {
+            "node": "🚨 Send Risk Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📋 Generate Enhanced Report": {
+      "main": [
+        [
+          {
+            "node": "📤 Report Notification Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Report Notification Check": {
+      "main": [
+        [
+          {
+            "node": "📨 Send Report Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow",
+    "timezone": "America/New_York"
+  },
+  "pinData": {},
+  "versionId": "2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "enhanced-portfolio-monitor",
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "production",
+      "name": "Production"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "portfolio",
+      "name": "Portfolio"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "alpaca-integration",
+      "name": "Alpaca Integration"
+    }
+  ]
+}

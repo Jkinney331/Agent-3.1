@@ -27,7 +27,7 @@ export async function GET() {
     // Calculate real portfolio metrics
     const totalPositionsValue = positions.reduce((sum, pos) => sum + pos.market_value, 0)
     const totalValue = account.balance + totalPositionsValue
-    const totalPnL = account.realized_pnl + positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
+    const totalPnL = positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
     const totalPnLPercent = account.initial_balance > 0 ? (totalPnL / account.initial_balance) * 100 : 0
 
     const portfolioData = {

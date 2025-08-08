@@ -40,6 +40,8 @@ export function CursorStyleChatPanel() {
     analysisCount: 0,
     tradingOpportunities: 0,
     successfulTrades: 0,
+    failedTrades: 0,
+    totalTrades: 0,
     confidence: 75
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);

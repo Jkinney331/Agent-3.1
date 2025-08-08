@@ -1,0 +1,441 @@
+{
+  "name": "📱 SMART NOTIFICATION SYSTEM",
+  "description": "Production notification hub with Telegram integration and intelligent routing",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "webhookCall",
+        "httpMethod": "POST",
+        "path": "trading-notification",
+        "options": {
+          "noResponseBody": false
+        }
+      },
+      "id": "notification-webhook",
+      "name": "📥 Notification Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 400],
+      "webhookId": "trading-notification-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "notification-type-trading",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "TRADING_OPPORTUNITY",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-risk",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "RISK_ALERT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-portfolio",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "PORTFOLIO_PERFORMANCE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-market",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "MARKET_INTELLIGENCE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "notification-type-report",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "DAILY_REPORT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "notification-router",
+      "name": "🎯 Notification Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-priority",
+              "leftValue": "={{ $json.body.priority === 'HIGH' || $json.body.priority === 'CRITICAL' || $json.body.type === 'RISK_ALERT' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "priority-check",
+      "name": "🚨 Priority Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Notification Formatter with Real Data Integration\nconst notification = $input.first().json.body;\nconst timestamp = new Date().toISOString();\nconst readableTime = new Date().toLocaleString('en-US', { \n  timeZone: 'America/New_York',\n  year: 'numeric', \n  month: 'short', \n  day: 'numeric', \n  hour: '2-digit', \n  minute: '2-digit'\n});\n\n// Priority and urgency mapping\nconst priorityConfig = {\n  CRITICAL: { emoji: '🔥', color: '#8B0000', urgency: 'CRITICAL' },\n  HIGH: { emoji: '🚨', color: '#FF4444', urgency: 'URGENT' },\n  MEDIUM: { emoji: '⚠️', color: '#FFA500', urgency: 'MEDIUM' },\n  LOW: { emoji: 'ℹ️', color: '#4CAF50', urgency: 'LOW' }\n};\n\n// Enhanced Type-specific formatting with real data\nconst typeFormatters = {\n  TRADING_OPPORTUNITY: (data) => ({\n    telegramMessage: `${priorityConfig.HIGH.emoji} <b>TRADING SIGNAL</b>\\n\\n` +\n                    `📊 <b>Symbol:</b> ${data.symbol?.toUpperCase() || 'Unknown'}\\n` +\n                    `📈 <b>Action:</b> ${data.action || 'Unknown'}\\n` +\n                    `🎯 <b>Confidence:</b> ${data.confidence || 'N/A'}\\n` +\n                    `💰 <b>Price:</b> ${data.price || 'N/A'}\\n` +\n                    `📊 <b>Score:</b> ${data.score || 'N/A'}\\n` +\n                    `🧠 <b>Reasoning:</b> ${data.reasoning || 'AI signal generated'}\\n\\n` +\n                    `⏰ <i>${readableTime}</i>`,\n    title: `Trading Opportunity: ${data.symbol?.toUpperCase() || 'Unknown'}`,\n    description: `${data.action} signal with ${data.confidence} confidence`,\n    color: priorityConfig.HIGH.color,\n    priority: 'HIGH'\n  }),\n  \n  RISK_ALERT: (data) => ({\n    telegramMessage: `${priorityConfig.CRITICAL.emoji} <b>RISK ALERT</b>\\n\\n` +\n                    `⚠️ <b>Level:</b> ${data.level || 'Unknown'}\\n` +\n                    `📊 <b>Risk:</b> ${data.risk || 'N/A'}\\n` +\n                    `💹 <b>P&L:</b> ${data.pnl || 'N/A'}\\n` +\n                    `📈 <b>Positions:</b> ${data.positions || 'N/A'}\\n` +\n                    `🔄 <b>Leverage:</b> ${data.leverage || 'N/A'}\\n` +\n                    `🚨 <b>Alerts:</b> ${Array.isArray(data.alerts) ? data.alerts.join(', ') : (data.alerts || 'Multiple alerts')}\\n` +\n                    `💡 <b>Recommendations:</b> ${data.recommendations || 'Review positions immediately'}\\n\\n` +\n                    `⏰ <i>${readableTime}</i>`,\n    title: 'Portfolio Risk Alert',\n    description: data.message || 'Risk threshold exceeded',\n    color: priorityConfig.CRITICAL.color,\n    priority: 'CRITICAL'\n  }),\n  \n  PORTFOLIO_PERFORMANCE: (data) => ({\n    telegramMessage: `${priorityConfig.MEDIUM.emoji} <b>PORTFOLIO REPORT</b>\\n\\n` +\n                    `💼 <b>Grade:</b> ${data.summary?.grade || 'N/A'}\\n` +\n                    `📊 <b>Equity:</b> ${data.summary?.equity || data.equity || 'N/A'}\\n` +\n                    `💹 <b>Daily P&L:</b> ${data.summary?.dailyPnL || data.dailyPnL || 'N/A'}\\n` +\n                    `📈 <b>Positions:</b> ${data.summary?.positions || data.positions || 'N/A'}\\n` +\n                    `🎯 <b>Fill Rate:</b> ${data.summary?.fillRate || data.fillRate || 'N/A'}\\n` +\n                    `⚠️ <b>Alerts:</b> ${Array.isArray(data.alerts) ? data.alerts.join(', ') : (data.alerts || 'None')}\\n\\n` +\n                    `💡 <b>Recommendations:</b>\\n${Array.isArray(data.recommendations) ? data.recommendations.map(r => `• ${r}`).join('\\n') : (data.recommendations || 'Continue monitoring')}\\n\\n` +\n                    `⏰ <i>${readableTime}</i>`,\n    title: `Portfolio Report - Grade ${data.summary?.grade || 'Unknown'}`,\n    description: 'Daily performance summary',\n    color: data.summary?.grade === 'A' ? '#4CAF50' : \n           data.summary?.grade === 'F' ? '#FF4444' : '#FFA500',\n    priority: data.priority || 'MEDIUM'\n  }),\n  \n  MARKET_INTELLIGENCE: (data) => ({\n    telegramMessage: `${priorityConfig.LOW.emoji} <b>MARKET UPDATE</b>\\n\\n` +\n                    `📊 <b>Analysis:</b> ${data.action || 'Market analyzed'}\\n` +\n                    `📈 <b>Bias:</b> ${data.bias || 'N/A'}\\n` +\n                    `💪 <b>Strength:</b> ${data.strength || 'N/A'}\\n` +\n                    `🎯 <b>Confidence:</b> ${data.confidence || 'N/A'}\\n` +\n                    `🔍 <b>Opportunities:</b> ${data.opportunities || 'N/A'}\\n` +\n                    `📡 <b>Signals:</b> ${data.signals || 'No new signals'}\\n\\n` +\n                    `⏰ <i>${readableTime}</i>`,\n    title: 'Market Intelligence Update',\n    description: `Market analysis complete - ${data.action || 'Analyzed'}`,\n    color: priorityConfig.LOW.color,\n    priority: 'LOW'\n  })\n};\n\n// Format notification based on type\nconst formatter = typeFormatters[notification.type];\nconst formattedNotification = formatter ? formatter(notification) : {\n  telegramMessage: `${priorityConfig.LOW.emoji} <b>TRADING BOT ALERT</b>\\n\\n` +\n                  `📊 <b>Type:</b> ${notification.type || 'Unknown'}\\n` +\n                  `📝 <b>Message:</b> ${notification.message || 'No message provided'}\\n\\n` +\n                  `⏰ <i>${readableTime}</i>`,\n  title: 'Trading Bot Notification',\n  description: 'Unknown notification type',\n  color: priorityConfig.LOW.color,\n  priority: 'LOW'\n};\n\n// Add metadata and audit information\nconst finalNotification = {\n  ...formattedNotification,\n  timestamp: readableTime,\n  originalType: notification.type,\n  sessionId: notification.sessionId || `session-${Date.now()}`,\n  \n  // Telegram specific formatting\n  telegram: {\n    message: formattedNotification.telegramMessage,\n    parseMode: 'HTML',\n    disableWebPagePreview: true,\n    chatId: process.env.TELEGRAM_CHAT_ID || '@ai_trading_alerts' // Default channel\n  },\n  \n  // Audit trail\n  audit: {\n    notificationId: `notif-${Date.now()}`,\n    receivedAt: timestamp,\n    processedAt: new Date().toISOString(),\n    source: 'n8n-workflow',\n    priority: formattedNotification.priority,\n    type: notification.type\n  },\n  \n  // Original data for logging\n  originalData: notification\n};\n\nconsole.log('📱 Notification Processed:', {\n  type: notification.type,\n  priority: formattedNotification.priority,\n  notificationId: finalNotification.audit.notificationId,\n  messageLength: formattedNotification.telegramMessage?.length || 0\n});\n\nreturn [{ json: { notification: finalNotification } }];"
+      },
+      "id": "enhanced-format-notification",
+      "name": "✨ Enhanced Format Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.telegram.org/bot{{ $vars.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"chat_id\": $json.notification.telegram.chatId,\n  \"text\": $json.notification.telegram.message,\n  \"parse_mode\": $json.notification.telegram.parseMode,\n  \"disable_web_page_preview\": $json.notification.telegram.disableWebPagePreview,\n  \"disable_notification\": $json.notification.priority === 'LOW'\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,\n          "retry": {\n            "enabled": true,\n            "maxTries": 3\n          }
+        }
+      },
+      "id": "send-telegram-notification",
+      "name": "📲 Send Telegram Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/notifications",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"notification_id\": $json.notification.audit.notificationId,\n  \"type\": $json.notification.originalType,\n  \"priority\": $json.notification.priority,\n  \"title\": $json.notification.title,\n  \"message\": $json.notification.description,\n  \"telegram_message\": $json.notification.telegram.message,\n  \"status\": $json.success ? 'SENT' : 'FAILED',\n  \"session_id\": $json.notification.sessionId,\n  \"metadata\": JSON.stringify($json.notification.originalData),\n  \"sent_at\": $json.notification.audit.processedAt,\n  \"created_at\": new Date().toISOString()\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "log-notification-db",
+      "name": "💾 Log Notification to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1000, 500]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "console-log",
+              "name": "logEntry",
+              "value": "={{ '[' + $json.notification.timestamp + '] ' + $json.notification.originalType + ': ' + $json.notification.description }}",
+              "type": "string"
+            },
+            {
+              "id": "notification-count",
+              "name": "notificationCount",
+              "value": "=1",
+              "type": "number"
+            },
+            {
+              "id": "processed-time",
+              "name": "processedAt",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            },
+            {
+              "id": "telegram-status",
+              "name": "telegramStatus",
+              "value": "={{ $input.all()[0].json.ok ? 'SUCCESS' : 'FAILED' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-notification-console",
+      "name": "📝 Log Notification Console",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "urgent-alert",
+              "name": "urgentAlert",
+              "value": "={{ {\n  alert: 'URGENT: ' + $json.notification.title,\n  description: $json.notification.description,\n  priority: 'CRITICAL',\n  requiresAction: true,\n  timestamp: $json.notification.timestamp,\n  escalate: true,\n  telegramSent: true\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "urgent-alert",
+      "name": "🔔 Urgent Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "standard-notification",
+              "name": "standardNotification",
+              "value": "={{ {\n  notification: $json.notification.title,\n  message: $json.notification.description,\n  priority: $json.notification.priority,\n  timestamp: $json.notification.timestamp,\n  routine: true,\n  telegramSent: true\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "standard-notification",
+      "name": "📢 Standard Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [800, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Error Handler with Telegram Recovery\nconst error = $input.first().json || { message: 'Unknown error' };\nconst timestamp = new Date().toISOString();\n\n// Enhanced error categorization\nconst errorCategories = {\n  TELEGRAM_ERROR: 'Telegram API failure',\n  API_ERROR: 'External API failure',\n  WEBHOOK_ERROR: 'Webhook processing failure',\n  DATA_ERROR: 'Data processing failure',\n  SYSTEM_ERROR: 'System/Network failure',\n  VALIDATION_ERROR: 'Data validation failure'\n};\n\nconst errorType = error.message?.includes('telegram') || error.message?.includes('bot') ? 'TELEGRAM_ERROR' :\n                 error.code?.includes('ECONNREFUSED') ? 'API_ERROR' :\n                 error.message?.includes('webhook') ? 'WEBHOOK_ERROR' :\n                 error.message?.includes('validation') ? 'VALIDATION_ERROR' :\n                 error.code?.includes('MODULE_NOT_FOUND') ? 'SYSTEM_ERROR' :\n                 'SYSTEM_ERROR';\n\n// Recovery strategies with Telegram fallback\nconst recoveryStrategies = {\n  TELEGRAM_ERROR: {\n    action: 'RETRY_TELEGRAM_WITH_FALLBACK',\n    retryCount: 3,\n    retryDelay: 10000,\n    fallbackAction: 'LOG_TO_DATABASE_ONLY',\n    escalate: false\n  },\n  API_ERROR: {\n    action: 'RETRY_WITH_FALLBACK',\n    retryCount: 3,\n    retryDelay: 30000,\n    fallbackAction: 'USE_CACHED_DATA',\n    escalate: false\n  },\n  WEBHOOK_ERROR: {\n    action: 'VALIDATE_AND_RETRY',\n    retryCount: 2,\n    retryDelay: 5000,\n    fallbackAction: 'LOG_ERROR_ONLY',\n    escalate: true\n  },\n  SYSTEM_ERROR: {\n    action: 'SYSTEM_RESTART',\n    retryCount: 1,\n    escalate: true,\n    fallbackAction: 'MAINTENANCE_MODE'\n  },\n  DATA_ERROR: {\n    action: 'VALIDATE_AND_CLEAN',\n    retryCount: 1,\n    fallbackAction: 'USE_DEFAULT_VALUES',\n    escalate: false\n  }\n};\n\nconst strategy = recoveryStrategies[errorType] || recoveryStrategies.SYSTEM_ERROR;\n\n// Generate comprehensive error report\nconst errorReport = {\n  errorId: `error-${Date.now()}`,\n  timestamp,\n  errorType,\n  category: errorCategories[errorType],\n  originalError: {\n    message: error.message || 'Unknown error',\n    code: error.code || 'NO_CODE',\n    stack: error.stack || 'No stack trace',\n    context: error.context || 'Notification processing',\n    httpStatus: error.httpStatus || 'Unknown'\n  },\n  severity: strategy.escalate ? 'CRITICAL' : 'MEDIUM',\n  recovery: {\n    strategy: strategy.action,\n    retryCount: strategy.retryCount,\n    retryDelay: strategy.retryDelay,\n    fallbackAction: strategy.fallbackAction,\n    requiresEscalation: strategy.escalate || false\n  },\n  impact: {\n    notificationAffected: true,\n    telegramAffected: errorType === 'TELEGRAM_ERROR',\n    dataAffected: errorType === 'DATA_ERROR',\n    systemAffected: errorType === 'SYSTEM_ERROR',\n    userNotificationRequired: strategy.escalate\n  },\n  recommendations: [\n    strategy.escalate ? 'Immediate attention required' : null,\n    errorType === 'TELEGRAM_ERROR' ? 'Check Telegram bot token and permissions' : null,\n    errorType === 'API_ERROR' ? 'Check API endpoints and credentials' : null,\n    errorType === 'WEBHOOK_ERROR' ? 'Validate webhook payload structure' : null,\n    'Monitor system stability after recovery',\n    'Review notification delivery logs'\n  ].filter(Boolean),\n  \n  // Telegram error message for fallback\n  telegramErrorMessage: `🚫 <b>SYSTEM ERROR</b>\\n\\n` +\n                       `⚠️ <b>Type:</b> ${errorType}\\n` +\n                       `📝 <b>Message:</b> ${error.message?.substring(0, 100) || 'Unknown error'}\\n` +\n                       `🔧 <b>Recovery:</b> ${strategy.action}\\n\\n` +\n                       `⏰ <i>${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}</i>`\n};\n\nconsole.log('🚫 Error Report Generated:', {\n  errorType,\n  severity: errorReport.severity,\n  requiresEscalation: errorReport.recovery.requiresEscalation,\n  errorId: errorReport.errorId\n});\n\nreturn [{ json: { errorReport, originalError: error } }];"
+      },
+      "id": "enhanced-error-handler",
+      "name": "🚫 Enhanced Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Comprehensive Notification Analytics\nconst notifications = $input.all();\nconst timestamp = new Date().toISOString();\nconst timeWindow = 3600000; // 1 hour\nconst now = Date.now();\n\n// Filter recent notifications\nconst recentNotifications = notifications.filter(n => {\n  const notifTime = new Date(n.json.notification?.timestamp || n.json.processedAt || timestamp).getTime();\n  return (now - notifTime) <= timeWindow;\n});\n\n// Enhanced analytics with Telegram delivery tracking\nconst analytics = {\n  summary: {\n    totalNotifications: notifications.length,\n    recentNotifications: recentNotifications.length,\n    timeWindow: '1 hour',\n    analysisTime: timestamp,\n    telegramDeliveryRate: notifications.filter(n => n.json.telegramStatus === 'SUCCESS').length / Math.max(notifications.length, 1) * 100\n  },\n  \n  byType: recentNotifications.reduce((acc, n) => {\n    const type = n.json.notification?.originalType || n.json.originalType || 'UNKNOWN';\n    acc[type] = (acc[type] || 0) + 1;\n    return acc;\n  }, {}),\n  \n  byPriority: recentNotifications.reduce((acc, n) => {\n    const priority = n.json.notification?.priority || n.json.priority || 'LOW';\n    acc[priority] = (acc[priority] || 0) + 1;\n    return acc;\n  }, {}),\n  \n  deliveryMetrics: {\n    totalSent: notifications.length,\n    successfulDeliveries: notifications.filter(n => n.json.telegramStatus === 'SUCCESS').length,\n    failedDeliveries: notifications.filter(n => n.json.telegramStatus === 'FAILED').length,\n    deliveryRate: notifications.length > 0 ? \n      (notifications.filter(n => n.json.telegramStatus === 'SUCCESS').length / notifications.length * 100).toFixed(1) + '%' : '0%'\n  },\n  \n  alerts: {\n    highVolumeAlert: recentNotifications.length > 15,\n    criticalAlerts: recentNotifications.filter(n => \n      (n.json.notification?.priority || n.json.priority) === 'CRITICAL').length,\n    deliveryIssues: notifications.filter(n => n.json.telegramStatus === 'FAILED').length > 2,\n    errorAlerts: recentNotifications.filter(n => n.json.errorReport).length,\n    tradingAlerts: recentNotifications.filter(n => \n      (n.json.notification?.originalType || n.json.originalType) === 'TRADING_OPPORTUNITY').length\n  },\n  \n  trends: {\n    averageNotificationsPerHour: recentNotifications.length,\n    mostCommonType: Object.entries(recentNotifications.reduce((acc, n) => {\n      const type = n.json.notification?.originalType || n.json.originalType || 'UNKNOWN';\n      acc[type] = (acc[type] || 0) + 1;\n      return acc;\n    }, {})).sort(([,a], [,b]) => b - a)[0]?.[0] || 'NONE',\n    criticalRate: recentNotifications.length > 0 ? \n      (recentNotifications.filter(n => \n        (n.json.notification?.priority || n.json.priority) === 'CRITICAL').length / recentNotifications.length * 100).toFixed(1) + '%' : '0%',\n    hourlyDistribution: 'Implementation for hourly patterns'\n  },\n  \n  recommendations: [\n    recentNotifications.length > 20 ? '⚠️ Very high notification volume - check for notification spam' : null,\n    recentNotifications.filter(n => \n      (n.json.notification?.priority || n.json.priority) === 'CRITICAL').length > 5 ? \n      '🚨 Multiple critical alerts - immediate system review required' : null,\n    notifications.filter(n => n.json.telegramStatus === 'FAILED').length > 3 ? \n      '📱 Telegram delivery issues - check bot token and permissions' : null,\n    recentNotifications.filter(n => n.json.errorReport).length > 2 ? \n      '🔧 Multiple system errors - health check recommended' : null,\n    recentNotifications.length === 0 ? 'ℹ️ No recent notifications - system quiet' : null,\n    '📊 Continue monitoring notification patterns and delivery rates'\n  ].filter(Boolean),\n  \n  performance: {\n    avgProcessingTime: 'Implementation for processing time tracking',\n    peakHours: 'Implementation for peak usage analysis',\n    reliabilityScore: Math.max(0, 100 - (notifications.filter(n => n.json.telegramStatus === 'FAILED').length * 10))\n  }\n};\n\nreturn [{ json: { notificationAnalytics: analytics } }];"
+      },
+      "id": "enhanced-analytics-engine",
+      "name": "📊 Enhanced Analytics Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 400]
+    }
+  ],
+  "connections": {
+    "📥 Notification Webhook": {
+      "main": [
+        [
+          {
+            "node": "🎯 Notification Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Notification Router": {
+      "main": [
+        [
+          {
+            "node": "🚨 Priority Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚫 Enhanced Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Priority Check": {
+      "main": [
+        [
+          {
+            "node": "🔔 Urgent Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📢 Standard Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔔 Urgent Alert": {
+      "main": [
+        [
+          {
+            "node": "✨ Enhanced Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 Standard Notification": {
+      "main": [
+        [
+          {
+            "node": "✨ Enhanced Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✨ Enhanced Format Notification": {
+      "main": [
+        [
+          {
+            "node": "📲 Send Telegram Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💾 Log Notification to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📲 Send Telegram Notification": {
+      "main": [
+        [
+          {
+            "node": "📝 Log Notification Console",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Log Notification to DB": {
+      "main": [
+        [
+          {
+            "node": "📝 Log Notification Console",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log Notification Console": {
+      "main": [
+        [
+          {
+            "node": "📊 Enhanced Analytics Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "notification-error-handler",
+    "timezone": "America/New_York"
+  },
+  "pinData": {},
+  "versionId": "2.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "enhanced-notification-system",
+  "tags": [
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "production",
+      "name": "Production"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "notifications",
+      "name": "Notifications"
+    },
+    {
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "id": "telegram",
+      "name": "Telegram"
+    }
+  ]
+}
